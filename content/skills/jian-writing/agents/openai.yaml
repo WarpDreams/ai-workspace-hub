@@ -1,0 +1,6 @@
+interface:
+  display_name: "Jian Writing"
+  short_description: "Draft email and Slack messages in Jian's style."
+  default_prompt: "Draft this message in Jian's writing style, choosing email or Slack tone based on the destination."
+policy:
+  allow_implicit_invocation: true

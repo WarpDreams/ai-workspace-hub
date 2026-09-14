@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Composed instruction artifacts (materialized from fragments)
+build/
+
+# Per-machine manifest — NEVER commit. Use examples/ for shareable templates.
+machine.jsonc
+machine.json
+machine.local.jsonc
+
+# OS / editor cruft
+.DS_Store
+*.log
+*.tmp

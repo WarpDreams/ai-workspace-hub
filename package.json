@@ -1,0 +1,27 @@
+{
+  "name": "ai-workspace-hub",
+  "version": "0.1.0",
+  "description": "Install canonical agent instructions and skills into per-agent home directories (Claude/Codex/Kiro) via symlinks, driven by a per-machine manifest.",
+  "type": "module",
+  "bin": {
+    "awh": "src/cli.ts"
+  },
+  "scripts": {
+    "awh": "tsx src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1",
+    "tsx": "4.23.13",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.15",
+    "typescript": "5.5.4"
+  },
+  "license": "MIT"
+}

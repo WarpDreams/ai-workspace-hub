@@ -1,0 +1,12 @@
+// machine.minimal.jsonc — a single Claude + single Codex home, all defaults.
+{
+  "defaults": {
+    "strategy": "symlink",
+    "instructions": ["base"],
+    "skills": "*"
+  },
+  "targets": [
+    { "agent": "claude", "home": "~/.claude" },
+    { "agent": "codex", "home": "~/.codex" }
+  ]
+}

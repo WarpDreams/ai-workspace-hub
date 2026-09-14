@@ -1,0 +1,4 @@
+interface:
+  display_name: "Compose Mermaid Diagrams"
+  short_description: "Design and verify clear Mermaid diagrams"
+  default_prompt: "Use $compose-mermaid-diagrams to create and visually verify a clear Mermaid architecture diagram."

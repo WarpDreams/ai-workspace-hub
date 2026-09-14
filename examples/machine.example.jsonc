@@ -1,0 +1,44 @@
+// ---------------------------------------------------------------------------
+// machine.example.jsonc — annotated reference of EVERY option.
+//
+// Copy one of the examples in this folder to the repo root as `machine.jsonc`
+// (which is git-ignored) and edit it for your machine:
+//
+//     cp examples/machine.macos-multi-codex.jsonc machine.jsonc
+//
+// Then:  scripts/awh.sh status   (or  scripts/install.sh)
+// ---------------------------------------------------------------------------
+{
+  // Optional. Applied to every target unless the target overrides them.
+  "defaults": {
+    // "symlink" (default): one copy on disk in this repo; agents read via a
+    //   link. Editing repo content updates every agent immediately.
+    // "copy": materialize independent copies. Portable; re-run `sync` to update.
+    "strategy": "symlink",
+
+    // Instruction fragments to install. Each name is a file under
+    // content/instructions/ without the .md extension. For single-file agents
+    // (Claude/Codex) multiple fragments are composed into one file; for Kiro
+    // each fragment becomes its own steering/<name>.md.
+    "instructions": ["base"],
+
+    // "*" installs every skill under content/skills/, or list specific names.
+    "skills": "*"
+  },
+
+  // One entry per (agent, home). Repeat an agent for multiple homes.
+  "targets": [
+    {
+      "agent": "codex", // one of: claude | codex | kiro
+      "home": "~/.codex", // agent home dir; leading ~ is expanded
+      "label": "primary", // optional label to disambiguate in output
+
+      // Any of these override the defaults for this target only:
+      "strategy": "symlink",
+      "instructions": ["base"],
+      "skills": "*"
+
+      // "disabled": true  // parse but skip this target
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+# ai-workspace-hub
+
+One source of truth for your agent **instructions** and **skills**, installed
+into every agent CLI's home directory in the format that CLI expects.
+
+Different agent CLIs read the same logical content from different physical
+locations:
+
+| Logical content     | Claude                      | Codex                     | Kiro                       |
+| ------------------- | --------------------------- | ------------------------- | -------------------------- |
+| Global instructions | `~/.claude/CLAUDE.md`       | `~/.codex/AGENTS.md`      | `~/.kiro/steering/*.md`    |
+| Skills              | `~/.claude/skills/<name>/`  | `~/.codex/skills/<name>/` | `~/.kiro/skills/<name>/`   |
+
+Each tool can also run under multiple home directories (e.g. `~/.codex` and
+`~/.codex-backup`). This project keeps a single canonical copy of each
+instruction and skill, and installs them into each agent home — by default via
+symlinks, so editing the repo updates every agent at once. A per-machine
+manifest (git-ignored) declares which agents/homes exist and what each gets.
+
+## Layout
+
+```
+content/
+  instructions/base.md         # canonical global instruction(s)
+  skills/<name>/SKILL.md        # canonical skills
+examples/                      # committed, shareable manifest templates
+machine.jsonc                  # your per-machine config (git-ignored)
+src/                           # TypeScript CLI
+scripts/                       # bash wrappers (bootstrap/install/uninstall)
+```
+
+## Quick start
+
+```bash
+# 1. Install dependencies (no build step — the CLI runs from TS via tsx)
+scripts/bootstrap.sh
+
+# 2. Discover agent homes on this machine and get a starter manifest
+scripts/awh.sh doctor
+
+# 3. Create your per-machine manifest (git-ignored)
+cp examples/machine.macos-multi-codex.jsonc machine.jsonc
+#   ...edit to taste...
+
+# 4. Preview, then install
+scripts/awh.sh status        # or: scripts/awh.sh plan
+scripts/install.sh           # == scripts/awh.sh install
+```
+
+Any subcommand can also be run with `npm run awh -- <command>` or, from the repo
+root, `node_modules/.bin/tsx src/cli.ts <command>`.
+
+## Commands
+
+| Command            | Purpose                                                          |
+| ------------------ | ---------------------------------------------------------------- |
+| `status`           | Show every target and its current on-disk state                 |
+| `plan`             | Dry-run: print operations without touching disk                 |
+| `install`          | Create symlinks/copies per the manifest                         |
+| `sync`             | Reconcile disk to manifest (install new, **prune removed**)      |
+| `uninstall`        | Remove links/copies this tool created                           |
+| `doctor`           | Scan the machine and emit a suggested `machine.jsonc`           |
+| `add-skill <name>` | Scaffold a new skill under `content/skills/`                    |
+
+Common flags: `-m/--manifest <path>`, `-f/--force` (replace real files or
+foreign symlinks), `-n/--dry-run`, `--json` (for `status`/`plan`).
+
+State glyphs in `status`/`plan`:
+
+```
+✓ linked/copied   · missing   ~ wrong-link (ours, elsewhere)
+! foreign-link (outside repo)  ✗ conflict (real file we didn't create)
+```
+
+## The manifest
+
+Git-ignored `machine.jsonc` at the repo root. See `examples/` for templates and
+`examples/machine.example.jsonc` for a fully annotated reference.
+
+```jsonc
+{
+  "defaults": {
+    "strategy": "symlink",     // symlink (default) | copy
+    "instructions": ["base"],  // files under content/instructions (sans .md)
+    "skills": "*"              // "*" = all, or ["name", ...]
+  },
+  "targets": [
+    { "agent": "codex",  "home": "~/.codex", "label": "primary" },
+    { "agent": "codex",  "home": "~/.codex-backup", "skills": ["confluence-upload"] },
+    { "agent": "claude", "home": "~/.claude" },
+    { "agent": "kiro",   "home": "~/.kiro" }
+  ]
+}
+```
+
+Any `defaults` field can be overridden per target. `disabled: true` parses but
+skips a target.
+
+## How install works
+
+- **Instructions**
+  - Single-file agents (Claude → `CLAUDE.md`, Codex → `AGENTS.md`): the selected
+    fragments are the source. One fragment → symlink straight to it. Multiple
+    fragments → composed into `build/instructions.<key>.md` (regenerated from the
+    canonical fragments) and linked, preserving one-source-of-truth.
+  - Kiro: each fragment maps to its own `steering/<name>.md`.
+- **Skills**: each selected skill is linked/copied to `<home>/skills/<name>`
+  (direct links per agent home — no shared bridge directory).
+
+## Strategies
+
+- **symlink** (default): a single on-disk copy in this repo; agents read through
+  the link. Editing repo content updates every agent immediately. The agent
+  needs the repo present at its path to resolve links.
+- **copy**: independent materialized copies. Portable and self-contained; run
+  `sync` after editing content to refresh them.
+
+## Safe & reversible
+
+Every path the tool creates is recorded in a ledger at
+`${XDG_STATE_HOME:-~/.local/state}/ai-workspace-hub/ledger.json`. This lets
+`uninstall` and `sync` remove **only what this tool created** and prune orphans
+left behind when you drop a target or skill from the manifest. Real files you
+created yourself are never touched unless you pass `--force`.
+
+## Requirements
+
+Node.js >= 18. macOS/Linux (bash wrappers).
+
+## Not yet in scope
+
+Managing agent config files (MCP servers, `config.toml`, `settings.json`) is
+intentionally deferred. This tool currently manages instructions and skills
+only.
