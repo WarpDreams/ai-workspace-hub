@@ -23,7 +23,12 @@
     "instructions": ["applus_base"],
 
     // "*" installs every skill under content/skills/, or list specific names.
-    "skills": "*"
+    "skills": "*",
+
+    // MCP servers from content/mcp/, added through each agent's own CLI
+    // (`claude mcp add-json`, `codex mcp add`, `kiro-cli mcp add`). Hosted
+    // servers open a browser login during install. "*", a list, or [] (default).
+    "mcp": ["context7", "notion", "playwright"]
   },
 
   // One entry per (agent, home). Repeat an agent for multiple homes.
@@ -31,14 +36,37 @@
     {
       "agent": "codex", // one of: claude | codex | kiro
       "home": "~/.codex", // agent home dir; leading ~ is expanded
-      "label": "primary", // optional label to disambiguate in output
+
+      // Optional identifier. Shown in status/plan/doctor output to tell
+      // multiple homes of one agent apart, and used by
+      // `awh launch <name> [args...]`, which starts this target's CLI with its
+      // home env var set (CODEX_HOME here; CLAUDE_CONFIG_DIR for claude,
+      // KIRO_HOME for kiro). Must be unique. Without a name you can still
+      // launch by agent id when that agent has exactly one target.
+      "name": "codex",
+
+      // Optional. What `launch` runs instead of the bare agent executable
+      // (claude | codex | kiro-cli). Shell-style string or argv array; the
+      // args you give `awh launch` are appended verbatim.
+      //   "commandline": "codex -p bedrock"
+      //   "commandline": ["codex", "-p", "bedrock"]
 
       // Any of these override the defaults for this target only:
       "strategy": "symlink",
       "instructions": ["applus_base"],
-      "skills": "*"
+      "skills": "*",
+      "mcp": ["playwright"]
 
-      // "disabled": true  // parse but skip this target
+      // "disabled": true  // parse but skip install/sync for this target
+    },
+
+    // A second Codex home using a profile; `awh launch codex_bedrock --full-auto`
+    // runs `CODEX_HOME=~/.codex-bedrock codex -p bedrock --full-auto`.
+    {
+      "agent": "codex",
+      "home": "~/.codex-bedrock",
+      "name": "codex_bedrock",
+      "commandline": "codex -p bedrock"
     }
   ]
 }

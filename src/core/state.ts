@@ -9,10 +9,11 @@ import path from "node:path";
  */
 
 export interface LedgerEntry {
+  /** Filesystem path we created, or for MCP servers a key `mcp:<agent>:<home>:<name>`. */
   dest: string;
   source: string;
-  strategy: "symlink" | "copy";
-  kind: "instruction" | "skill";
+  strategy: "symlink" | "copy" | "cli";
+  kind: "instruction" | "skill" | "mcp";
   agent: string;
   home: string;
   createdAt: string;
@@ -69,4 +70,14 @@ export function forgetEntry(ledger: Ledger, dest: string): boolean {
 
 export function hasEntry(ledger: Ledger, dest: string): boolean {
   return ledger.entries.some((e) => e.dest === dest);
+}
+
+/** Ledger key for an MCP server managed through an agent's CLI. */
+export function mcpLedgerKey(agent: string, homeAbs: string, name: string): string {
+  return `mcp:${agent}:${homeAbs}:${name}`;
+}
+
+export function parseMcpLedgerKey(key: string): { agent: string; homeAbs: string; name: string } | undefined {
+  const m = /^mcp:([^:]+):(.+):([^:]+)$/.exec(key);
+  return m ? { agent: m[1], homeAbs: m[2], name: m[3] } : undefined;
 }

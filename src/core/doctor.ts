@@ -7,8 +7,10 @@ import { allAdapters, type Adapter } from "../adapters/index";
 import { absPath } from "../util/paths";
 import { isOurs } from "./link";
 import { loadLedger, type Ledger } from "./state";
-import { buildPlan, type PlanOp } from "./plan";
+import { buildPlan, type McpOp, type PlanOp } from "./plan";
 import { composedMatches, isComposed } from "./content";
+import { describeDisk, describeSpec } from "./mcp";
+import { mcpLedgerKey } from "./state";
 
 /**
  * `doctor` inspects what is actually deployed on this machine — every agent
@@ -19,7 +21,7 @@ import { composedMatches, isComposed } from "./content";
  */
 
 /** How an installed item is managed by awh, or null when it is not ours. */
-export type Managed = "symlink" | "copy" | null;
+export type Managed = "symlink" | "copy" | "cli" | null;
 
 export type SyncStatus =
   | "in-sync" // managed, matches the manifest's desired source
@@ -30,7 +32,7 @@ export type SyncStatus =
   | "unmanaged"; // not ours and not wanted by the manifest — left alone
 
 export interface DoctorItem {
-  kind: "instruction" | "skill";
+  kind: "instruction" | "skill" | "mcp";
   /** Display name: file name for instructions, directory name for skills. */
   name: string;
   dest: string;
@@ -49,11 +51,13 @@ export interface DoctorHome {
   exists: boolean;
   /**
    * undefined = no manifest loaded; null = not a target in the manifest;
-   * otherwise the target's label/disabled flag.
+   * otherwise the target's name/disabled flag.
    */
-  target?: { label?: string; disabled: boolean } | null;
+  target?: { name?: string; disabled: boolean } | null;
   instructions: DoctorItem[];
   skills: DoctorItem[];
+  /** User-scope MCP servers in this home's agent config, managed or not. */
+  mcp: DoctorItem[];
 }
 
 export interface DoctorReport {
@@ -185,15 +189,19 @@ export function buildDoctorReport(loaded?: { path: string; manifest: Manifest })
   // Manifest-derived lookups.
   const targets = loaded ? resolveTargets(loaded.manifest) : [];
   const targetKey = (agent: string, homeAbs: string) => `${agent}:${homeAbs}`;
-  const targetInfo = new Map<string, { label?: string; disabled: boolean }>();
-  for (const t of targets) targetInfo.set(targetKey(t.agent, absPath(t.home)), { label: t.label, disabled: t.disabled });
+  const targetInfo = new Map<string, { name?: string; disabled: boolean }>();
+  for (const t of targets) targetInfo.set(targetKey(t.agent, absPath(t.home)), { name: t.name, disabled: t.disabled });
 
   const opsByHome = new Map<string, Map<string, PlanOp>>();
+  const mcpByHome = new Map<string, Map<string, McpOp>>();
   if (loaded) {
     for (const tp of buildPlan(loaded.manifest).targets) {
       const m = new Map<string, PlanOp>();
       for (const op of tp.ops) m.set(op.dest, op);
       opsByHome.set(targetKey(tp.target.agent, tp.homeAbs), m);
+      const mm = new Map<string, McpOp>();
+      for (const op of tp.mcp) mm.set(op.name, op);
+      mcpByHome.set(targetKey(tp.target.agent, tp.homeAbs), mm);
     }
   }
 
@@ -233,6 +241,44 @@ export function buildDoctorReport(loaded?: { path: string; manifest: Manifest })
         for (const op of ops.values()) (op.kind === "instruction" ? instrDests : skillDests).add(op.dest);
       }
 
+      // MCP servers: everything in the agent's config file, plus what the manifest wants.
+      const mcpOps = mcpByHome.get(key);
+      const onDisk = exists ? adapter.mcp.readServers(homeAbs) : {};
+      const mcpNames = new Set<string>(Object.keys(onDisk));
+      if (checkSync && mcpOps) for (const n of mcpOps.keys()) mcpNames.add(n);
+      const configFile = adapter.mcp.configFile(homeAbs);
+      const mcpItems: DoctorItem[] = [...mcpNames].sort().map((name) => {
+        const disk = onDisk[name];
+        const present = disk !== undefined;
+        const managed: Managed = ledger.entries.some((e) => e.dest === mcpLedgerKey(adapter.id, homeAbs, name)) ? "cli" : null;
+        const item: DoctorItem = { kind: "mcp", name, dest: `${configFile}#${name}`, present, managed };
+        const op = mcpOps?.get(name);
+        if (checkSync) {
+          if (!op) {
+            item.sync = managed ? "orphan" : "unmanaged";
+            if (managed) item.detail = "managed by awh but not in the manifest; `sync` would remove it";
+          } else if (op.state === "unsupported") {
+            item.sync = present ? "unmanaged" : "not-installed";
+            item.detail = op.reason;
+          } else if (!present) {
+            item.sync = "not-installed";
+          } else if (op.state === "installed") {
+            item.sync = "in-sync";
+          } else if (managed) {
+            item.sync = "out-of-sync";
+            item.detail = `have: ${describeDisk(disk)} — want: ${describeSpec(op.spec)}; run \`sync\``;
+          } else {
+            item.sync = "conflict";
+            item.detail = `configured by something else as: ${describeDisk(disk)}; \`install --force\` would replace it`;
+          }
+        } else if (loaded && managed) {
+          item.sync = "orphan";
+          item.detail = "managed by awh but this home is not an enabled manifest target";
+        }
+        if (present && disk.disabled) item.detail = [item.detail, "disabled in agent config"].filter(Boolean).join("; ");
+        return item;
+      });
+
       homes.push({
         agent: adapter.id,
         homeAbs,
@@ -240,6 +286,7 @@ export function buildDoctorReport(loaded?: { path: string; manifest: Manifest })
         target,
         instructions: [...instrDests].sort().map((d) => makeItem("instruction", d)),
         skills: [...skillDests].sort().map((d) => makeItem("skill", d)),
+        mcp: mcpItems,
       });
     }
   }

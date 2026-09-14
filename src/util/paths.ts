@@ -36,6 +36,10 @@ export function skillsDir(): string {
   return path.join(contentDir(), "skills");
 }
 
+export function mcpDir(): string {
+  return path.join(contentDir(), "mcp");
+}
+
 export function buildDir(): string {
   return path.join(repoRoot(), "build");
 }

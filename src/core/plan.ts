@@ -13,12 +13,14 @@ import {
   skillPath,
 } from "./content";
 import { inspect, type LinkState } from "./link";
+import { hasEntry, loadLedger, mcpLedgerKey, type Ledger } from "./state";
+import { loadMcpSpec, resolveMcpSelection, specMatches, type McpServerOnDisk, type McpSpec } from "./mcp";
+import type { AgentId } from "../config/schema";
 
 export interface PlanOp {
   kind: "instruction" | "skill";
   agent: string;
   home: string;
-  label?: string;
   strategy: "symlink" | "copy";
   /** Absolute source path in the repo (or build/ for composed instructions). */
   source: string;
@@ -36,17 +38,68 @@ export interface PlanOp {
   fragments?: string[];
 }
 
+export type McpState =
+  | "installed" // configured and matches the spec (versions ignored)
+  | "missing" // not configured
+  | "mismatch" // configured by us, but differs from the spec
+  | "conflict" // configured by someone else under the same name, and differs
+  | "unsupported"; // this agent's CLI cannot add this kind of server
+
+export interface McpOp {
+  agent: AgentId;
+  home: string;
+  name: string;
+  spec: McpSpec;
+  /** The agent config file the server lives in (for display only — never written). */
+  configFile: string;
+  state: McpState;
+  /** Recorded in the ledger as ours. */
+  managed: boolean;
+  existing?: McpServerOnDisk;
+  reason?: string;
+}
+
 export interface TargetPlan {
   target: ResolvedTarget;
   homeAbs: string;
   ops: PlanOp[];
+  mcp: McpOp[];
 }
 
 export interface Plan {
   targets: TargetPlan[];
 }
 
-function buildTargetPlan(target: ResolvedTarget): TargetPlan {
+function buildMcpOps(target: ResolvedTarget, homeAbs: string, ledger: Ledger): McpOp[] {
+  const adapter = getAdapter(target.agent);
+  const names = resolveMcpSelection(target.mcp);
+  if (names.length === 0) return [];
+  const onDisk = adapter.mcp.readServers(homeAbs);
+  const configFile = adapter.mcp.configFile(homeAbs);
+  const out: McpOp[] = [];
+  for (const name of names) {
+    const spec = loadMcpSpec(name);
+    if (spec.agents && !spec.agents.includes(target.agent)) continue;
+    const managed = hasEntry(ledger, mcpLedgerKey(target.agent, homeAbs, name));
+    const existing = onDisk[name];
+    let state: McpState;
+    let reason: string | undefined;
+    if (!adapter.mcp.addArgv(name, spec)) {
+      state = "unsupported";
+      reason = `${adapter.displayName} cannot add ${spec.type} servers through its CLI`;
+    } else if (!existing) {
+      state = "missing";
+    } else if (specMatches(spec, existing)) {
+      state = "installed";
+    } else {
+      state = managed ? "mismatch" : "conflict";
+    }
+    out.push({ agent: target.agent, home: homeAbs, name, spec, configFile, state, managed, existing, reason });
+  }
+  return out;
+}
+
+function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
   const adapter = getAdapter(target.agent);
   const homeAbs = absPath(target.home);
   const ops: PlanOp[] = [];
@@ -71,7 +124,6 @@ function buildTargetPlan(target: ResolvedTarget): TargetPlan {
       kind: "instruction",
       agent: target.agent,
       home: homeAbs,
-      label: target.label,
       strategy: target.strategy,
       source,
       dest,
@@ -88,8 +140,7 @@ function buildTargetPlan(target: ResolvedTarget): TargetPlan {
         kind: "instruction",
         agent: target.agent,
         home: homeAbs,
-        label: target.label,
-        strategy: target.strategy,
+          strategy: target.strategy,
         source,
         dest,
         state: inspect(dest, source, target.strategy).state,
@@ -108,7 +159,6 @@ function buildTargetPlan(target: ResolvedTarget): TargetPlan {
       kind: "skill",
       agent: target.agent,
       home: homeAbs,
-      label: target.label,
       strategy: target.strategy,
       source,
       dest,
@@ -117,10 +167,11 @@ function buildTargetPlan(target: ResolvedTarget): TargetPlan {
     });
   }
 
-  return { target, homeAbs, ops };
+  return { target, homeAbs, ops, mcp: buildMcpOps(target, homeAbs, ledger) };
 }
 
 export function buildPlan(manifest: Manifest): Plan {
   const resolved = resolveTargets(manifest).filter((t) => !t.disabled);
-  return { targets: resolved.map(buildTargetPlan) };
+  const ledger = loadLedger();
+  return { targets: resolved.map((t) => buildTargetPlan(t, ledger)) };
 }
