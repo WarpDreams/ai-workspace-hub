@@ -3,10 +3,12 @@ import path from "node:path";
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
 import { z } from "zod";
 import { AGENT_IDS, type AgentId, type SkillSelector } from "../config/schema";
-import { mcpDir } from "../util/paths";
+import { absPathFrom } from "../util/paths";
+import { contentIndex, looksLikePath } from "./content";
 
 /**
- * Canonical MCP server definitions live in content/mcp/<name>.jsonc, in the
+ * Canonical MCP server definitions are <name>.jsonc files under a directory
+ * named `mcp` in a content search path, in the
  * de-facto standard `mcpServers` entry shape (command/args/env or url).
  * Only "public" servers are in scope: hosted HTTP endpoints, or packages run
  * through a runner such as npx/uvx. Nothing here is written to agent config
@@ -55,28 +57,21 @@ export interface McpSpec {
   file: string;
 }
 
-/** Names of servers defined under content/mcp. */
+/** Names of discovered MCP specs. */
 export function availableMcp(): string[] {
-  const dir = mcpDir();
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(".jsonc") || f.endsWith(".json"))
-    .map((f) => f.replace(/\.jsonc?$/, ""))
-    .sort();
+  return [...contentIndex().mcp.keys()].sort();
 }
 
-export function mcpSpecPath(name: string): string {
-  const dir = mcpDir();
-  for (const ext of [".jsonc", ".json"]) {
-    const p = path.join(dir, name + ext);
-    if (fs.existsSync(p)) return p;
-  }
-  return path.join(dir, name + ".jsonc");
+export function mcpSpecPath(entry: string): string {
+  const idx = contentIndex();
+  if (looksLikePath(entry)) return absPathFrom(idx.base, entry);
+  const item = idx.mcp.get(entry);
+  return item ? item.path : path.join(idx.base, "mcp", `${entry}.jsonc`);
 }
 
-export function loadMcpSpec(name: string): McpSpec {
-  const file = mcpSpecPath(name);
+export function loadMcpSpec(entry: string): McpSpec {
+  const file = mcpSpecPath(entry);
+  const name = path.basename(file).replace(/\.jsonc?$/, "");
   const raw = fs.readFileSync(file, "utf8");
   const errors: ParseError[] = [];
   const data = parseJsonc(raw, errors, { allowTrailingComma: true });
@@ -104,13 +99,14 @@ export function loadMcpSpec(name: string): McpSpec {
   };
 }
 
-/** Resolve a manifest `mcp` selector ("*" | [names]) against content/mcp. */
+/** Resolve a manifest `mcp` selector ("*" | [names/paths]) against the mcp root. */
 export function resolveMcpSelection(sel: SkillSelector): string[] {
-  const all = availableMcp();
-  if (sel === "*") return all;
-  const missing = sel.filter((s) => !all.includes(s));
+  if (sel === "*") return availableMcp();
+  const missing = sel.filter((s) => !fs.existsSync(mcpSpecPath(s)));
   if (missing.length) {
-    throw new Error(`Unknown MCP server(s): ${missing.join(", ")}. Available: ${all.join(", ") || "(none)"}`);
+    throw new Error(
+      `MCP spec(s) not found: ${missing.map(mcpSpecPath).join(", ")}. Discovered (under mcp/ dirs in the search paths): ${availableMcp().join(", ") || "(none)"}`,
+    );
   }
   return sel;
 }

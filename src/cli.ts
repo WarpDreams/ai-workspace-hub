@@ -1,4 +1,3 @@
-#!/usr/bin/env -S npx tsx
 import fs from "node:fs";
 import path from "node:path";
 import { findManifest, loadManifest, ManifestError, type LoadedManifest } from "./config/load";
@@ -9,7 +8,12 @@ import { applyInstall, applySync, applyUninstall, type ApplyResult } from "./cor
 import { allAdapters } from "./adapters/index";
 import { availableSkills, availableInstructions } from "./core/content";
 import { availableMcp, describeDisk, describeSpec } from "./core/mcp";
-import { absPath, tildify, skillsDir } from "./util/paths";
+import { absPath, tildify } from "./util/paths";
+import { contentConfigured, contentIndex } from "./core/content";
+
+/** Injected by the esbuild `--define` in `npm run build`; absent when run via tsx. */
+declare const __AWH_VERSION__: string | undefined;
+const VERSION = typeof __AWH_VERSION__ === "string" ? __AWH_VERSION__ : "dev";
 
 interface Flags {
   manifest?: string;
@@ -258,10 +262,20 @@ function cmdDoctor(flags: Flags): number {
   if (report.homes.length === 0) console.log("  (none found)");
   for (const h of report.homes) printDoctorHome(h);
 
-  console.log("\nAvailable content in this repo:");
-  console.log(`  instructions: ${availableInstructions().join(", ") || "(none)"}`);
-  console.log(`  skills:       ${availableSkills().join(", ") || "(none)"}`);
-  console.log(`  mcp:          ${availableMcp().join(", ") || "(none)"}`);
+  if (contentConfigured()) {
+    const idx = contentIndex();
+    console.log(`\nContent search paths: ${idx.searchPaths.map(tildify).join(", ")}`);
+    console.log(`  instructions: ${availableInstructions().join(", ") || "(none)"}`);
+    console.log(`  skills:       ${availableSkills().join(", ") || "(none)"}`);
+    console.log(`  mcp:          ${availableMcp().join(", ") || "(none)"}`);
+    if (idx.shadowed.length) {
+      console.log("  ! name collisions (the later occurrence wins):");
+      for (const s of idx.shadowed) {
+        console.log(`    ${s.kind.padEnd(11)} ${s.name.padEnd(24)} using ${tildify(s.winner.path)}`);
+        console.log(`    ${"".padEnd(11)} ${"".padEnd(24)} shadows ${tildify(s.loser.path)}`);
+      }
+    }
+  }
 
   if (loaded) {
     const items = report.homes.flatMap((h) => [...h.instructions, ...h.skills, ...h.mcp]);
@@ -296,11 +310,12 @@ function cmdAddSkill(flags: Flags): number {
     console.error("Usage: awh add-skill <name>");
     return 2;
   }
+  loadManifest(flags.manifest); // establishes the content roots
   if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
     console.error("Skill name must be kebab-case (lowercase letters, digits, hyphens).");
     return 2;
   }
-  const dir = path.join(skillsDir(), name);
+  const dir = path.join(contentIndex().base, "skills", name);
   if (fs.existsSync(dir)) {
     console.error(`Skill already exists: ${tildify(dir)}`);
     return 1;
@@ -386,7 +401,7 @@ Everything after <target> is passed to the agent unchanged.
 }
 
 function usage(): void {
-  console.log(`ai-workspace-hub (awh) — install agent instructions & skills across CLIs
+  console.log(`ai-workspace-hub (awh) ${VERSION} — install agent instructions, skills & MCP servers across CLIs
 
 Usage:
   awh <command> [options]
@@ -398,17 +413,18 @@ Commands:
   sync                Reconcile disk to manifest (install new, prune removed)
   uninstall           Remove links/copies and MCP servers this tool created
   doctor              Scan agent deployments; show managed/unmanaged & sync state
-  add-skill <name>    Scaffold a new skill under content/skills/
+  add-skill <name>    Scaffold a new skill under skills/ beside the manifest
   launch <target> [args...]
                       Run the target's agent CLI with its home env var set;
                       args after <target> are passed through verbatim
 
 Options:
-  -m, --manifest <p>  Path to manifest (default: ./.awh.jsonc, then ~/.awh.jsonc)
+  -m, --manifest <p>  Path to manifest (default: $AWH_MANIFEST, ./.awh.jsonc, ~/.awh.jsonc)
   -f, --force         Replace real files / foreign symlinks / foreign MCP entries on conflict
   -n, --dry-run       Compute actions without writing
       --json          Machine-readable output (status/plan/doctor)
   -h, --help          Show this help
+  -v, --version       Show version
 `);
 }
 
@@ -416,6 +432,10 @@ function main(): number {
   const argv = process.argv.slice(2);
   if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") {
     usage();
+    return 0;
+  }
+  if (argv[0] === "-v" || argv[0] === "--version") {
+    console.log(`awh ${VERSION}`);
     return 0;
   }
   const command = argv[0];

@@ -1,5 +1,5 @@
-// machine.macos-multi-codex.jsonc
-// Matches a machine with two Codex homes plus Claude and Kiro.
+// machine.macos-multi-codex.jsonc — two Codex homes plus Claude and Kiro.
+// Put this in your content repo as .awh.jsonc, beside instructions/, skills/, mcp/.
 {
   "defaults": {
     "strategy": "symlink",

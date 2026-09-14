@@ -1,6 +1,5 @@
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 /** Expand a leading ~ or ~/ to the user's home directory. */
 export function expandHome(p: string): string {
@@ -9,43 +8,40 @@ export function expandHome(p: string): string {
   return p;
 }
 
-/** Absolute, tilde-expanded, normalized path. */
+/** Absolute, tilde-expanded, normalized path (relative paths against cwd). */
 export function absPath(p: string): string {
   return path.resolve(expandHome(p));
 }
 
-/**
- * Repo root = two levels up from this module (src/util/paths.ts -> repo root).
- * Run directly from TypeScript via tsx, so import.meta.url points at source.
- */
-export function repoRoot(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  // src/util -> src -> repo root
-  return path.resolve(here, "..", "..");
+/** Absolute path, resolving a relative `p` against `base` instead of cwd. */
+export function absPathFrom(base: string, p: string): string {
+  const e = expandHome(p);
+  return path.isAbsolute(e) ? path.normalize(e) : path.resolve(base, e);
 }
 
-export function contentDir(): string {
-  return path.join(repoRoot(), "content");
+/** Per-user state directory: $XDG_STATE_HOME/ai-workspace-hub or ~/.local/state/ai-workspace-hub. */
+export function stateDir(): string {
+  const base =
+    process.env.XDG_STATE_HOME && process.env.XDG_STATE_HOME.trim() !== ""
+      ? process.env.XDG_STATE_HOME
+      : path.join(os.homedir(), ".local", "state");
+  return path.join(base, "ai-workspace-hub");
 }
 
-export function instructionsDir(): string {
-  return path.join(contentDir(), "instructions");
-}
-
-export function skillsDir(): string {
-  return path.join(contentDir(), "skills");
-}
-
-export function mcpDir(): string {
-  return path.join(contentDir(), "mcp");
-}
-
+/** Where composed (multi-fragment) instruction files are generated. */
 export function buildDir(): string {
-  return path.join(repoRoot(), "build");
+  return path.join(stateDir(), "build");
 }
 
 /** Render an absolute path back to ~-relative for display. */
 export function tildify(p: string): string {
   const home = os.homedir();
   return p.startsWith(home) ? "~" + p.slice(home.length) : p;
+}
+
+/** True when `p` is `root` or lies beneath it. */
+export function isUnder(p: string, root: string): boolean {
+  const a = path.resolve(p);
+  const r = path.resolve(root);
+  return a === r || a.startsWith(r + path.sep);
 }

@@ -1,6 +1,0 @@
-// Playwright browser automation — public npm package run via npx.
-{
-  "type": "stdio",
-  "command": "npx",
-  "args": ["@playwright/mcp@latest"]
-}

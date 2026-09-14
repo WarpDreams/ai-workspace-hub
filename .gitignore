@@ -1,10 +1,8 @@
-# Dependencies
+# Dependencies / build output
 node_modules/
+dist/
 
-# Composed instruction artifacts (materialized from fragments)
-build/
-
-# Per-machine manifest — NEVER commit. Use examples/ for shareable templates.
+# Manifests live in your content repo, not here.
 .awh.jsonc
 
 # OS / editor cruft

@@ -6,11 +6,10 @@ import { absPath } from "../util/paths";
 import {
   composedInstructionPath,
   composedMatches,
-  instructionFragmentPath,
   isComposed,
   resolveInstructionSelection,
   resolveSkillSelection,
-  skillPath,
+  type ResolvedFragment,
 } from "./content";
 import { inspect, type LinkState } from "./link";
 import { hasEntry, loadLedger, mcpLedgerKey, type Ledger } from "./state";
@@ -35,7 +34,7 @@ export interface PlanOp {
    * 2+ the source is a generated composite under build/ that install/sync
    * (re)write; plan/status report it as "stale" when out of date.
    */
-  fragments?: string[];
+  fragments?: ResolvedFragment[];
 }
 
 export type McpState =
@@ -128,14 +127,14 @@ function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
       source,
       dest,
       state,
-      name: fragments.length === 1 ? fragments[0] : fragments.join("+"),
+      name: fragments.map((f) => f.name).join("+"),
       fragments,
     });
   } else {
     // per-fragment
     for (const frag of fragments) {
-      const source = instructionFragmentPath(frag);
-      const dest = mapping.perFragment!(frag);
+      const source = frag.file;
+      const dest = mapping.perFragment!(frag.name);
       ops.push({
         kind: "instruction",
         agent: target.agent,
@@ -144,7 +143,7 @@ function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
         source,
         dest,
         state: inspect(dest, source, target.strategy).state,
-        name: frag,
+        name: frag.name,
       });
     }
   }
@@ -153,8 +152,8 @@ function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
   const skills = resolveSkillSelection(target.skills);
   const skillsRoot = adapter.skillsRoot(homeAbs);
   for (const skill of skills) {
-    const source = skillPath(skill);
-    const dest = path.join(skillsRoot, skill);
+    const source = skill.dir;
+    const dest = path.join(skillsRoot, skill.name);
     ops.push({
       kind: "skill",
       agent: target.agent,
@@ -163,7 +162,7 @@ function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
       source,
       dest,
       state: inspect(dest, source, target.strategy).state,
-      name: skill,
+      name: skill.name,
     });
   }
 

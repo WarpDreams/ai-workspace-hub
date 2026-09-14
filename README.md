@@ -1,10 +1,10 @@
-# ai-workspace-hub
+# ai-workspace-hub (`awh`)
 
-One source of truth for your agent **instructions** and **skills**, installed
-into every agent CLI's home directory in the format that CLI expects.
+One command-line tool that installs your canonical agent **instructions**,
+**skills** and **MCP servers** into every agent CLI's home directory, in the
+format each CLI expects, and launches agents against a chosen home.
 
-Different agent CLIs read the same logical content from different physical
-locations:
+Different agent CLIs read the same logical content from different places:
 
 | Logical content     | Claude                      | Codex                          | Kiro                       |
 | ------------------- | --------------------------- | ------------------------------ | -------------------------- |
@@ -12,129 +12,176 @@ locations:
 | Skills              | `~/.claude/skills/<name>/`  | `~/.codex/skills/<name>/`      | `~/.kiro/skills/<name>/`   |
 | MCP servers (user)  | `~/.claude.json`            | `~/.codex/config.toml`         | `~/.kiro/settings/mcp.json`|
 
-Each tool can also run under multiple home directories (e.g. `~/.codex` and
-`~/.codex-backup`). This project keeps a single canonical copy of each
-instruction and skill, and installs them into each agent home — by default via
-symlinks, so editing the repo updates every agent at once. A per-machine
-manifest (git-ignored) declares which agents/homes exist and what each gets.
+`awh` is only the tool. **Your content lives in a separate repo** (see
+[ai-workspace-content](https://github.com/alienbat/ai-workspace-content) for
+the layout): instruction fragments, skill directories, MCP specs, and the
+per-machine manifest `.awh.jsonc` that says which agents/homes exist and what
+each gets.
 
-## Layout
-
-```
-content/
-  instructions/applus_base.md  # canonical global instruction(s)
-  skills/<name>/SKILL.md        # canonical skills
-  mcp/<name>.jsonc              # canonical MCP server definitions (public servers)
-examples/                      # committed, shareable manifest templates
-.awh.jsonc                     # your per-machine config (git-ignored)
-src/                           # TypeScript CLI
-scripts/                       # bash wrappers (bootstrap/install/uninstall)
-```
-
-## Quick start
+## Install
 
 ```bash
-# 1. Install dependencies (no build step — the CLI runs from TS via tsx)
-scripts/bootstrap.sh
+# from the git repo (not yet on the npm registry)
+npm install -g git+ssh://git@github.com/alienbat/ai-workspace-hub.git
+# or from a clone
+git clone git@github.com:alienbat/ai-workspace-hub.git && cd ai-workspace-hub && npm install -g .
 
-# 2. Discover agent homes on this machine and get a starter manifest
-scripts/awh.sh doctor
-
-# 3. Create your per-machine manifest (git-ignored)
-cp examples/machine.macos-multi-codex.jsonc .awh.jsonc
-#   ...edit to taste...
-
-# 4. Preview, then install
-scripts/awh.sh status        # or: scripts/awh.sh plan
-scripts/install.sh           # == scripts/awh.sh install
+awh --version
 ```
 
-Any subcommand can also be run with `npm run awh -- <command>` or, from the repo
-root, `node_modules/.bin/tsx src/cli.ts <command>`.
+Requires Node.js >= 18 on macOS or Linux and, for MCP management and
+`launch`, the agent CLIs themselves (`claude`, `codex`, `kiro-cli`) on PATH.
+
+## Point it at your content
+
+`awh` looks for the manifest in this order: `-m/--manifest <path>`,
+`$AWH_MANIFEST`, `./.awh.jsonc`, `~/.awh.jsonc`. The usual setup is a symlink:
+
+```bash
+git clone git@github.com:alienbat/ai-workspace-content.git ~/works/ai-workspace-content
+ln -s ~/works/ai-workspace-content/.awh.jsonc ~/.awh.jsonc
+awh doctor
+```
+
+Relative paths in a manifest resolve against the directory of the **real**
+manifest file, so content sits beside it in the content repo.
+
+## How content is found
+
+The manifest's `content_search_paths` (default `["."]`, i.e. the manifest's
+own directory) are scanned recursively. Items are recognised by shape, so no
+particular layout is required:
+
+| Kind        | Recognised as                                         | Name                 |
+| ----------- | ----------------------------------------------------- | -------------------- |
+| skill       | any directory containing `SKILL.md` (not descended into) | directory name    |
+| instruction | any `.md` file under a directory named `instructions` | file name sans `.md` |
+| MCP spec    | any `.json`/`.jsonc` under a directory named `mcp`    | file name sans ext   |
+
+`.git`, `node_modules` and dot-directories are skipped; symlinked directories
+are followed once. Markdown outside an `instructions/` directory (a README, a
+skill's reference docs) is never treated as an instruction fragment.
+
+If the same name is found more than once, **the later occurrence wins** —
+later search paths override earlier ones, so a personal repo listed after a
+shared one can shadow it. `doctor` prints every shadowed item.
 
 ## Commands
 
-| Command            | Purpose                                                          |
-| ------------------ | ---------------------------------------------------------------- |
-| `status`           | Show every target and its current on-disk state                 |
-| `plan`             | Dry-run: print operations without touching disk                 |
-| `install`          | Create symlinks/copies per the manifest                         |
-| `sync`             | Reconcile disk to manifest (install new, **prune removed**)      |
-| `uninstall`        | Remove links/copies this tool created                           |
-| `doctor`           | Scan agent homes on this machine; show every instruction file and skill, managed or not, and sync state |
-| `add-skill <name>` | Scaffold a new skill under `content/skills/`                    |
+| Command                     | Purpose                                                                 |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `status`                    | Show every target and its current on-disk state                        |
+| `plan`                      | Dry-run: print operations without touching disk                        |
+| `install`                   | Create symlinks/copies; add MCP servers through each agent's CLI       |
+| `sync`                      | Reconcile disk to manifest (install new, **prune removed**)             |
+| `uninstall`                 | Remove links/copies and MCP servers this tool created                  |
+| `doctor`                    | Scan agent homes on this machine; show every instruction file, skill and MCP server, managed or not, and sync state |
+| `add-skill <name>`          | Scaffold a new skill under `skills/` beside the manifest               |
 | `launch <target> [args...]` | Run a target's agent CLI with its home env var set; `args` pass through |
 
-Common flags: `-m/--manifest <path>`, `-f/--force` (replace real files or
-foreign symlinks), `-n/--dry-run`, `--json` (for `status`/`plan`/`doctor`).
+Common flags: `-m/--manifest <path>`, `-f/--force` (replace real files,
+foreign symlinks or foreign MCP entries), `-n/--dry-run`, `--json` (for
+`status`/`plan`/`doctor`).
 
 `doctor` lists every agent home it finds (`~/.claude`, `~/.codex`, `~/.kiro`,
 any `~/.<agent>-*` sibling such as `~/.codex-backup`, and any home the manifest
-names), then every global instruction file and installed skill in each, marked
-`managed (symlink|copy)` or `unmanaged`. With a manifest it also reports sync
-state: `in sync`, `OUT OF SYNC`, `not installed`, `CONFLICT` (unmanaged path
-where the manifest wants ours) or `ORPHAN` (ours, but no longer in the
-manifest). Without a manifest the sync check is skipped and a starter
-`.awh.jsonc` is suggested.
+names), then every global instruction file, installed skill and user-scope MCP
+server in each, marked `managed (symlink|copy|cli)` or `unmanaged`. With a
+manifest it also reports sync state: `in sync`, `OUT OF SYNC`, `not installed`,
+`CONFLICT` (unmanaged item where the manifest wants ours) or `ORPHAN` (ours,
+but no longer in the manifest). Without a manifest the sync check is skipped
+and a starter `.awh.jsonc` is suggested.
 
 State glyphs in `status`/`plan`:
 
 ```
 ✓ linked/copied   · missing   ~ wrong-link (ours, elsewhere)
-! foreign-link (outside repo)  ✗ conflict (real file we didn't create)
+! foreign-link (outside our content)  ✗ conflict (real file we didn't create)
 ↻ stale (composed instructions out of date — run install/sync)
 ```
 
 ## The manifest
 
-Git-ignored `.awh.jsonc`, resolved from the current directory first, then your
-home directory (`~/.awh.jsonc`). Pass `-m/--manifest <path>` to use a specific
-file. See `examples/` for templates and `examples/machine.example.jsonc` for a
-fully annotated reference.
+`.awh.jsonc` (JSON with comments). See `examples/` for templates and
+`examples/machine.example.jsonc` for a fully annotated reference.
 
 ```jsonc
 {
+  // Optional. Directories scanned for content: absolute / ~ / relative to this
+  // file. Default ["."]. Later entries override earlier ones on name clashes.
+  "content_search_paths": [".", "~/works/team-shared-content"],
+
   "defaults": {
-    "strategy": "symlink",     // symlink (default) | copy
-    "instructions": ["applus_base"],  // files under content/instructions (sans .md)
-    "skills": "*",             // "*" = all, or ["name", ...]
-    "mcp": []                  // MCP servers under content/mcp; default [] (opt in)
+    "strategy": "symlink",            // symlink (default) | copy
+    "instructions": ["applus_base"],  // discovered fragment names, or paths to .md files
+    "skills": "*",                    // "*" = every discovered skill, or names / paths to skill dirs
+    "mcp": []                         // discovered MCP spec names, or paths; default [] (opt in)
   },
   "targets": [
     { "agent": "codex",  "home": "~/.codex", "name": "codex" },
-    { "agent": "codex",  "home": "~/.codex-backup", "skills": ["confluence-upload"] },
-    { "agent": "claude", "home": "~/.claude" },
-    { "agent": "kiro",   "home": "~/.kiro" }
+    { "agent": "codex",  "home": "~/.codex-backup", "name": "codex_backup", "skills": ["confluence-upload"] },
+    { "agent": "claude", "home": "~/.claude", "name": "claude" },
+    { "agent": "kiro",   "home": "~/.kiro", "name": "kiro" }
   ]
 }
 ```
 
+Selector entries are **names** (as discovered by the scan) or **paths** —
+anything with a `/`, a leading `~` or `.`, or a `.md`/`.jsonc` extension —
+resolved against the manifest's directory, which bypasses discovery entirely.
+So `"instructions": ["applus_base", "../shared/security.md"]` and
+`"skills": ["~/other-repo/skills/foo"]` both work; the installed name is the
+file/directory basename.
+
 Any `defaults` field can be overridden per target. `disabled: true` parses but
 skips a target for install/sync. Two more optional per-target fields exist for
-`launch`: `name` (a unique handle) and `commandline` (see below).
+`launch`: `name` (a unique handle, also shown in output) and `commandline`.
 
 `instructions`, `skills` and `mcp` may be omitted (the defaults above apply) or
 set to an empty array `[]`, at the top level or per target. An empty array is
-valid and means "manage none": the target's instruction file(s), skills
-directory and/or MCP configuration are left entirely alone.
+valid and means "manage none".
+
+## How install works
+
+- **Instructions**
+  - Single-file agents (Claude → `CLAUDE.md`, Codex → `AGENTS.md`): one
+    fragment → symlink straight to it, so edits are live immediately. Multiple
+    fragments → concatenated in manifest order (blank line between, no added
+    headings) into `<state>/build/instructions.<a>+<b>.md` and linked/copied.
+    That composite is written **only by `install` and `sync`**; after editing a
+    fragment, run one of them. `plan`, `status` and `doctor` are read-only and
+    flag the composite as `stale` (↻ / OUT OF SYNC) when it differs.
+  - Kiro: each fragment maps to its own `steering/<name>.md`.
+- **Skills**: each selected skill is linked/copied to `<home>/skills/<name>`.
+- **MCP servers**: see below — never by editing config files.
+
+`<state>` is `${XDG_STATE_HOME:-~/.local/state}/ai-workspace-hub`.
+
+## Strategies
+
+- **symlink** (default): agents read through links into your content repo.
+  Editing content updates every agent immediately (except multi-fragment
+  composites, which need `install`/`sync`). The content repo must stay at its
+  path.
+- **copy**: independent materialized copies. Portable and self-contained; run
+  `sync` after editing content to refresh them.
 
 ## MCP servers
 
-`content/mcp/<name>.jsonc` holds one public MCP server each, in the standard
+Each `<name>.jsonc` under an `mcp/` directory holds one public MCP server, in the standard
 `mcpServers` entry shape — a hosted endpoint or a package run via a runner:
 
 ```jsonc
-// content/mcp/notion.jsonc
+// mcp/notion.jsonc
 { "type": "http", "url": "https://mcp.notion.com/mcp" }
 
-// content/mcp/playwright.jsonc
+// mcp/playwright.jsonc
 { "type": "stdio", "command": "npx", "args": ["@playwright/mcp@latest"] }
 ```
 
 Optional fields: `env` (stdio), `agents: ["claude", ...]` to restrict which
 agents get it, `login: false` to skip the post-add login for an http server.
-Select servers with `"mcp": "*" | ["notion", ...] | []` in the manifest, at
-the top level or per target. The default is `[]`.
+Select servers with `"mcp": "*" | ["notion", ...] | []` in the manifest.
 
 **awh never edits an agent's config file for MCP.** `install`/`sync`/
 `uninstall` drive each agent's own CLI, in the foreground, one command at a
@@ -150,22 +197,20 @@ Hosted servers usually need a browser login. Because each vendor command runs
 in the foreground and awh waits for it to exit, the CLI's own OAuth callback
 listener stays alive until you finish in the browser, and logins for different
 servers or agents never overlap. Expect `install` to pause on each http server
-until you complete (or cancel) its login.
+until you complete (or cancel) its login. Claude's login needs an interactive
+terminal; when there is none, awh skips it and prints the command to run.
 
 Matching is by *what* is configured, not which version: `@playwright/mcp@latest`
 and `@playwright/mcp@1.2.3` count as the same server. `status`/`plan` show
 each selected server as `installed`, `missing`, `mismatch` (ours, differs),
 `conflict` (someone else's entry under the same name — skipped unless
-`--force`) or `unsupported`. `doctor` lists every user-scope server the agent
-has, managed or not, with the same sync vocabulary as skills. Servers awh
-added are recorded in the ledger, so `uninstall` and `sync` only ever remove
-those.
+`--force`) or `unsupported`. Servers awh added are recorded in the ledger, so
+`uninstall` and `sync` only ever remove those.
 
 ## Launching an agent against a target
 
 Agent CLIs each read an environment variable that relocates their home
-directory. `awh launch` sets it for you and starts the CLI, so the agent sees
-exactly the instructions and skills installed into that target:
+directory. `awh launch` sets it for you and starts the CLI:
 
 | Agent  | Env var             | Default command |
 | ------ | ------------------- | --------------- |
@@ -182,7 +227,7 @@ exactly the instructions and skills installed into that target:
 ```
 
 ```bash
-awh launch claude --model opus          # CLAUDE_CONFIG_DIR=~/.claude claude --model opus
+awh launch claude --model opus          # claude --model opus
 awh launch codex_bedrock exec "fix it"  # CODEX_HOME=~/.codex-bedrock codex -p bedrock exec "fix it"
 awh launch -n codex_bedrock             # dry run: print the env + command only
 ```
@@ -193,53 +238,41 @@ awh launch -n codex_bedrock             # dry run: print the env + command only
   It is either a shell-style string (quotes honoured, no globbing/variables) or
   an argv array.
 - Everything after `<target>` is passed to the agent verbatim. `awh`'s own
-  flags (`-m`, `-n`) are only recognised *before* the target name, so agent
-  flags with the same spelling are safe; a leading `--` after the target is
-  dropped.
+  flags (`-m`, `-n`) are only recognised *before* the target name; a leading
+  `--` after the target is dropped.
 - The agent's exit code is returned.
 - For Claude's default home `~/.claude` no variable is set at all: with
   `CLAUDE_CONFIG_DIR=~/.claude` Claude would look for `~/.claude/.claude.json`
   instead of its normal `~/.claude.json`. Any other Claude home gets the
   variable, and its `.claude.json` lives inside that directory.
 
-## How install works
-
-- **Instructions**
-  - Single-file agents (Claude → `CLAUDE.md`, Codex → `AGENTS.md`): the selected
-    fragments are the source. One fragment → symlink straight to it, so edits in
-    the repo are live immediately. Multiple fragments → concatenated in manifest
-    order (blank line between, no added headings) into
-    `build/instructions.<a>+<b>.md` and linked/copied. That composite is written
-    **only by `install` and `sync`**; after editing a fragment, run one of them.
-    `plan`, `status` and `doctor` are read-only and flag the composite as
-    `stale` (↻ / OUT OF SYNC) when it is missing or differs from the fragments.
-  - Kiro: each fragment maps to its own `steering/<name>.md`.
-- **Skills**: each selected skill is linked/copied to `<home>/skills/<name>`
-  (direct links per agent home — no shared bridge directory).
-
-## Strategies
-
-- **symlink** (default): a single on-disk copy in this repo; agents read through
-  the link. Editing repo content updates every agent immediately (except
-  multi-fragment composites, which need `install`/`sync` to regenerate). The
-  agent needs the repo present at its path to resolve links.
-- **copy**: independent materialized copies. Portable and self-contained; run
-  `sync` after editing content to refresh them.
-
 ## Safe & reversible
 
-Every path the tool creates is recorded in a ledger at
-`${XDG_STATE_HOME:-~/.local/state}/ai-workspace-hub/ledger.json`. This lets
-`uninstall` and `sync` remove **only what this tool created** and prune orphans
-left behind when you drop a target or skill from the manifest. Real files you
-created yourself are never touched unless you pass `--force`.
+Every path or MCP entry the tool creates is recorded in a ledger at
+`<state>/ledger.json`. `uninstall` and `sync` remove **only what this tool
+created** and prune orphans left behind when you drop a target, skill or server
+from the manifest. Real files you created yourself are never touched unless
+you pass `--force`.
 
-## Requirements
+## Developing
 
-Node.js >= 18. macOS/Linux (bash wrappers).
+```bash
+npm install
+npm run awh -- status        # run from TypeScript via tsx
+npm run typecheck
+npm run build                # bundles to dist/cli.cjs (also runs on `npm install` via prepare)
+npm link                     # make this checkout the global `awh`
+npm pack --dry-run           # inspect exactly what a published tarball would contain
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Not yet in scope
 
 - Custom/local MCP servers with machine-specific paths or inline secrets; only
   public servers (hosted endpoints, runner-launched packages) are supported.
 - Other agent settings (`config.toml` keys, `settings.json`, permissions).
+
+## License
+
+[MIT](LICENSE) © Jian Shen

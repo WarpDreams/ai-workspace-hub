@@ -21,7 +21,7 @@ export type SkillSelector = z.infer<typeof SkillSelector>;
 const Defaults = z
   .object({
     strategy: z.enum(STRATEGIES).default("symlink"),
-    /** Instruction fragment names (files under content/instructions, without .md). */
+    /** Instruction fragments: names in the instructions root (sans .md) or paths to .md files. */
     instructions: z.array(z.string().min(1)).default(["applus_base"]),
     skills: SkillSelector.default("*"),
     /**
@@ -68,6 +68,12 @@ export type Target = z.infer<typeof Target>;
 export const ManifestSchema = z
   .object({
     $schema: z.string().optional(),
+    /**
+     * Directories scanned recursively for content (absolute, ~, or relative to
+     * this file's directory). Default ["."]. Later paths override earlier
+     * ones on name collisions.
+     */
+    content_search_paths: z.array(z.string().min(1)).min(1).default(["."]),
     defaults: Defaults.default({}),
     targets: z.array(Target).min(1),
   })

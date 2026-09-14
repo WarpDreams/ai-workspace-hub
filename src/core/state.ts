@@ -1,6 +1,6 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { stateDir } from "../util/paths";
 
 /**
  * The ledger records every destination path this tool created, so uninstall
@@ -22,14 +22,6 @@ export interface LedgerEntry {
 export interface Ledger {
   version: 1;
   entries: LedgerEntry[];
-}
-
-function stateDir(): string {
-  const base =
-    process.env.XDG_STATE_HOME && process.env.XDG_STATE_HOME.trim() !== ""
-      ? process.env.XDG_STATE_HOME
-      : path.join(os.homedir(), ".local", "state");
-  return path.join(base, "ai-workspace-hub");
 }
 
 export function ledgerPath(): string {
