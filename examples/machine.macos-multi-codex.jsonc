@@ -1,23 +1,23 @@
-// machine.macos-multi-codex.jsonc
-// Matches a machine with two Codex homes plus Claude and Kiro.
+// machine.macos-multi-codex.jsonc — two Codex homes plus Claude and Kiro.
+// Put this in your content repo as .awh.jsonc, beside instructions/, skills/, mcp/.
 {
   "defaults": {
     "strategy": "symlink",
-    "instructions": ["base"],
+    "instructions": ["applus_base"],
     "skills": "*"
   },
   "targets": [
-    { "agent": "codex", "home": "~/.codex", "label": "primary" },
+    { "agent": "codex", "home": "~/.codex", "name": "codex" },
 
     // A secondary Codex home that only needs one skill.
     {
       "agent": "codex",
       "home": "~/.codex-backup",
-      "label": "backup",
+      "name": "codex_backup",
       "skills": ["confluence-upload"]
     },
 
-    { "agent": "claude", "home": "~/.claude" },
-    { "agent": "kiro", "home": "~/.kiro" }
+    { "agent": "claude", "home": "~/.claude", "name": "claude" },
+    { "agent": "kiro", "home": "~/.kiro", "name": "kiro" }
   ]
 }

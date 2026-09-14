@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { repoRoot } from "../util/paths";
+import { isOwnedPath } from "./content";
 
 /**
  * State of a destination path relative to a desired source, for a given
@@ -10,8 +10,9 @@ export type LinkState =
   | "missing" // nothing at destination
   | "linked" // symlink pointing at the expected source (symlink strategy)
   | "copied" // regular file/dir matching source (copy strategy — best-effort)
-  | "wrong-link" // symlink to a different place, but still into our repo
-  | "foreign-link" // symlink to somewhere outside our repo
+  | "wrong-link" // symlink to a different place, but still into our content
+  | "foreign-link" // symlink to somewhere outside our content
+  | "stale" // link/copy is in place, but the composed source is missing or out of date
   | "conflict"; // a real file/dir we did not create
 
 export interface InspectResult {
@@ -20,14 +21,13 @@ export interface InspectResult {
   linkTarget?: string;
 }
 
-/** True when `p` is a symlink whose target is inside the repo. */
+/** True when `p` is a symlink whose target is inside our content roots or build dir. */
 export function isOurs(p: string): boolean {
   try {
     const st = fs.lstatSync(p);
     if (!st.isSymbolicLink()) return false;
     const target = path.resolve(path.dirname(p), fs.readlinkSync(p));
-    const root = repoRoot();
-    return target === root || target.startsWith(root + path.sep);
+    return isOwnedPath(target);
   } catch {
     return false;
   }

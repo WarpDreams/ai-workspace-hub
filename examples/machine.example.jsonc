@@ -1,14 +1,21 @@
 // ---------------------------------------------------------------------------
 // machine.example.jsonc — annotated reference of EVERY option.
 //
-// Copy one of the examples in this folder to `.awh.jsonc` in the directory you
-// run awh from (or to ~/.awh.jsonc); both are git-ignored. Edit for your machine:
+// The manifest lives in your CONTENT repo (next to instructions/, skills/,
+// mcp/), not in the awh tool repo. Copy one of these examples there as
+// `.awh.jsonc`, then point awh at it:
 //
-//     cp examples/machine.macos-multi-codex.jsonc .awh.jsonc
-//
-// Then:  scripts/awh.sh status   (or  scripts/install.sh)
+//     ln -s ~/works/ai-workspace-content/.awh.jsonc ~/.awh.jsonc
+//     awh doctor && awh install
 // ---------------------------------------------------------------------------
 {
+  // Optional. Directories scanned recursively for content — absolute,
+  // ~-prefixed, or relative to THIS file's directory. Default ["."].
+  // Recognised by shape: a dir with SKILL.md is a skill; .md files under a
+  // dir named `instructions` are fragments; .json(c) under a dir named `mcp`
+  // are MCP specs. On name clashes the LATER path wins (doctor warns).
+  "content_search_paths": ["."],
+
   // Optional. Applied to every target unless the target overrides them.
   "defaults": {
     // "symlink" (default): one copy on disk in this repo; agents read via a
@@ -16,14 +23,22 @@
     // "copy": materialize independent copies. Portable; re-run `sync` to update.
     "strategy": "symlink",
 
-    // Instruction fragments to install. Each name is a file under
-    // content/instructions/ without the .md extension. For single-file agents
-    // (Claude/Codex) multiple fragments are composed into one file; for Kiro
-    // each fragment becomes its own steering/<name>.md.
-    "instructions": ["base"],
+    // Instruction fragments to install: discovered names (file name sans
+    // .md), or paths to .md files (absolute, ~, or relative to this file).
+    // For single-file agents (Claude/Codex) multiple
+    // fragments are composed into one file; for Kiro each fragment becomes
+    // its own steering/<name>.md.
+    "instructions": ["applus_base"],
 
-    // "*" installs every skill under content/skills/, or list specific names.
-    "skills": "*"
+    // "*" installs every discovered skill, or list names / paths to skill
+    // directories (each must contain SKILL.md).
+    "skills": "*",
+
+    // MCP servers: discovered spec names (or paths to .jsonc files), added
+    // through each agent's own CLI
+    // (`claude mcp add-json`, `codex mcp add`, `kiro-cli mcp add`). Hosted
+    // servers open a browser login during install. "*", a list, or [] (default).
+    "mcp": ["context7", "notion", "playwright"]
   },
 
   // One entry per (agent, home). Repeat an agent for multiple homes.
@@ -31,14 +46,37 @@
     {
       "agent": "codex", // one of: claude | codex | kiro
       "home": "~/.codex", // agent home dir; leading ~ is expanded
-      "label": "primary", // optional label to disambiguate in output
+
+      // Optional identifier. Shown in status/plan/doctor output to tell
+      // multiple homes of one agent apart, and used by
+      // `awh launch <name> [args...]`, which starts this target's CLI with its
+      // home env var set (CODEX_HOME here; CLAUDE_CONFIG_DIR for claude,
+      // KIRO_HOME for kiro). Must be unique. Without a name you can still
+      // launch by agent id when that agent has exactly one target.
+      "name": "codex",
+
+      // Optional. What `launch` runs instead of the bare agent executable
+      // (claude | codex | kiro-cli). Shell-style string or argv array; the
+      // args you give `awh launch` are appended verbatim.
+      //   "commandline": "codex -p bedrock"
+      //   "commandline": ["codex", "-p", "bedrock"]
 
       // Any of these override the defaults for this target only:
       "strategy": "symlink",
-      "instructions": ["base"],
-      "skills": "*"
+      "instructions": ["applus_base"],
+      "skills": "*",
+      "mcp": ["playwright"]
 
-      // "disabled": true  // parse but skip this target
+      // "disabled": true  // parse but skip install/sync for this target
+    },
+
+    // A second Codex home using a profile; `awh launch codex_bedrock --full-auto`
+    // runs `CODEX_HOME=~/.codex-bedrock codex -p bedrock --full-auto`.
+    {
+      "agent": "codex",
+      "home": "~/.codex-bedrock",
+      "name": "codex_bedrock",
+      "commandline": "codex -p bedrock"
     }
   ]
 }

@@ -1,27 +1,63 @@
 {
   "name": "ai-workspace-hub",
   "version": "0.1.0",
-  "description": "Install canonical agent instructions and skills into per-agent home directories (Claude/Codex/Kiro) via symlinks, driven by a per-machine manifest.",
+  "description": "awh: install canonical agent instructions, skills and MCP servers into Claude Code, Codex and Kiro homes from a per-machine manifest, and launch agents against a chosen home.",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "kiro",
+    "mcp",
+    "agent",
+    "skills",
+    "instructions",
+    "dotfiles",
+    "cli",
+    "awh"
+  ],
+  "homepage": "https://github.com/alienbat/ai-workspace-hub#readme",
+  "bugs": {
+    "url": "https://github.com/alienbat/ai-workspace-hub/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alienbat/ai-workspace-hub.git"
+  },
+  "license": "MIT",
+  "author": "Jian Shen <alienbat@gmail.com>",
   "type": "module",
   "bin": {
-    "awh": "src/cli.ts"
+    "awh": "dist/cli.cjs"
   },
-  "scripts": {
-    "awh": "tsx src/cli.ts",
-    "start": "tsx src/cli.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
+  "files": [
+    "dist/",
+    "examples/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=18"
   },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --main-fields=module,main --define:__AWH_VERSION__=\\\"$npm_package_version\\\" --outfile=dist/cli.cjs --banner:js='#!/usr/bin/env node' && chmod +x dist/cli.cjs",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm run build",
+    "awh": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "jsonc-parser": "3.3.1",
-    "tsx": "4.23.13",
+    "smol-toml": "1.8.0",
     "zod": "3.23.8"
   },
   "devDependencies": {
     "@types/node": "20.14.15",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.13",
     "typescript": "5.5.4"
-  },
-  "license": "MIT"
+  }
 }
