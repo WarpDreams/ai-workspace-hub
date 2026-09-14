@@ -5,9 +5,7 @@ node_modules/
 build/
 
 # Per-machine manifest — NEVER commit. Use examples/ for shareable templates.
-machine.jsonc
-machine.json
-machine.local.jsonc
+.awh.jsonc
 
 # OS / editor cruft
 .DS_Store

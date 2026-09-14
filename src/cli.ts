@@ -159,7 +159,7 @@ function cmdDoctor(flags: Flags): number {
   console.log(`  instructions: ${availableInstructions().join(", ") || "(none)"}`);
   console.log(`  skills:       ${availableSkills().join(", ") || "(none)"}`);
 
-  console.log("\nSuggested machine.jsonc:");
+  console.log("\nSuggested .awh.jsonc:");
   const manifest = {
     defaults: { strategy: "symlink", instructions: ["base"], skills: "*" },
     targets: suggestions,
@@ -214,11 +214,11 @@ Commands:
   install             Create symlinks/copies per the manifest
   sync                Reconcile disk to manifest (install new, prune removed)
   uninstall           Remove links/copies this tool created
-  doctor              Scan the machine and suggest a machine.jsonc
+  doctor              Scan the machine and suggest a .awh.jsonc
   add-skill <name>    Scaffold a new skill under content/skills/
 
 Options:
-  -m, --manifest <p>  Path to manifest (default: repo machine.jsonc)
+  -m, --manifest <p>  Path to manifest (default: ./.awh.jsonc, then ~/.awh.jsonc)
   -f, --force         Replace real files / foreign symlinks on conflict
   -n, --dry-run       Compute actions without writing
       --json          Machine-readable output (status/plan)

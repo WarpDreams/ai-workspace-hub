@@ -24,7 +24,7 @@ content/
   instructions/base.md         # canonical global instruction(s)
   skills/<name>/SKILL.md        # canonical skills
 examples/                      # committed, shareable manifest templates
-machine.jsonc                  # your per-machine config (git-ignored)
+.awh.jsonc                     # your per-machine config (git-ignored)
 src/                           # TypeScript CLI
 scripts/                       # bash wrappers (bootstrap/install/uninstall)
 ```
@@ -39,7 +39,7 @@ scripts/bootstrap.sh
 scripts/awh.sh doctor
 
 # 3. Create your per-machine manifest (git-ignored)
-cp examples/machine.macos-multi-codex.jsonc machine.jsonc
+cp examples/machine.macos-multi-codex.jsonc .awh.jsonc
 #   ...edit to taste...
 
 # 4. Preview, then install
@@ -59,7 +59,7 @@ root, `node_modules/.bin/tsx src/cli.ts <command>`.
 | `install`          | Create symlinks/copies per the manifest                         |
 | `sync`             | Reconcile disk to manifest (install new, **prune removed**)      |
 | `uninstall`        | Remove links/copies this tool created                           |
-| `doctor`           | Scan the machine and emit a suggested `machine.jsonc`           |
+| `doctor`           | Scan the machine and emit a suggested `.awh.jsonc`              |
 | `add-skill <name>` | Scaffold a new skill under `content/skills/`                    |
 
 Common flags: `-m/--manifest <path>`, `-f/--force` (replace real files or
@@ -74,8 +74,10 @@ State glyphs in `status`/`plan`:
 
 ## The manifest
 
-Git-ignored `machine.jsonc` at the repo root. See `examples/` for templates and
-`examples/machine.example.jsonc` for a fully annotated reference.
+Git-ignored `.awh.jsonc`, resolved from the current directory first, then your
+home directory (`~/.awh.jsonc`). Pass `-m/--manifest <path>` to use a specific
+file. See `examples/` for templates and `examples/machine.example.jsonc` for a
+fully annotated reference.
 
 ```jsonc
 {

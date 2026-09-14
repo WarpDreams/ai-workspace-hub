@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // machine.example.jsonc — annotated reference of EVERY option.
 //
-// Copy one of the examples in this folder to the repo root as `machine.jsonc`
-// (which is git-ignored) and edit it for your machine:
+// Copy one of the examples in this folder to `.awh.jsonc` in the directory you
+// run awh from (or to ~/.awh.jsonc); both are git-ignored. Edit for your machine:
 //
-//     cp examples/machine.macos-multi-codex.jsonc machine.jsonc
+//     cp examples/machine.macos-multi-codex.jsonc .awh.jsonc
 //
 // Then:  scripts/awh.sh status   (or  scripts/install.sh)
 // ---------------------------------------------------------------------------
