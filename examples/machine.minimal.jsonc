@@ -2,7 +2,7 @@
 {
   "defaults": {
     "strategy": "symlink",
-    "instructions": ["base"],
+    "instructions": ["applus_base"],
     "skills": "*"
   },
   "targets": [

@@ -59,24 +59,59 @@ export function resolveInstructionSelection(names: string[]): string[] {
 }
 
 /**
- * For single-file agents that compose multiple fragments, we cannot symlink a
- * single source. Materialize a composed file under build/ and return its path,
- * preserving the "one source of truth" property (regenerated from fragments).
+ * Composition for single-file agents (Claude's CLAUDE.md, Codex's AGENTS.md).
  *
- * When exactly one fragment is selected, we return the fragment source itself
- * so a symlink points straight at the canonical file.
+ * - Exactly one fragment: the agent file links straight to the canonical
+ *   fragment; nothing is generated.
+ * - Several fragments: they are concatenated (manifest order, blank line
+ *   between) into build/instructions.<a>+<b>.md, and the agent file links to
+ *   or copies that. The composed file is ONLY written by install/sync;
+ *   plan/status/doctor never touch disk and instead report it as stale when
+ *   it is missing or differs from a fresh in-memory composition.
  */
-export function composedInstructionSource(fragments: string[]): string {
+
+/** Path the agent file should point at for this fragment selection. Pure. */
+export function composedInstructionPath(fragments: string[]): string {
+  if (fragments.length === 0) {
+    throw new Error("composedInstructionPath requires at least one fragment");
+  }
   if (fragments.length === 1) {
     return instructionFragmentPath(fragments[0]);
   }
-  const outDir = buildDir();
-  fs.mkdirSync(outDir, { recursive: true });
-  const key = fragments.join("+");
-  const outPath = path.join(outDir, `instructions.${key}.md`);
+  return path.join(buildDir(), `instructions.${fragments.join("+")}.md`);
+}
+
+/** True when this selection needs a generated composite (2+ fragments). */
+export function isComposed(fragments: string[]): boolean {
+  return fragments.length > 1;
+}
+
+/** The composed body for a fragment selection, computed in memory. */
+export function composeInstructions(fragments: string[]): string {
   const body = fragments
     .map((name) => fs.readFileSync(instructionFragmentPath(name), "utf8").trimEnd())
     .join("\n\n");
-  fs.writeFileSync(outPath, body + "\n", "utf8");
+  return body + "\n";
+}
+
+/** True when `filePath` holds exactly the current composition of `fragments`. */
+export function composedMatches(fragments: string[], filePath: string): boolean {
+  try {
+    return fs.readFileSync(filePath, "utf8") === composeInstructions(fragments);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Materialize the composite under build/ (idempotent). Returns its path.
+ * Called by install/sync only.
+ */
+export function writeComposedInstructions(fragments: string[]): string {
+  const outPath = composedInstructionPath(fragments);
+  if (!isComposed(fragments)) return outPath;
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  const body = composeInstructions(fragments);
+  if (!composedMatches(fragments, outPath)) fs.writeFileSync(outPath, body, "utf8");
   return outPath;
 }

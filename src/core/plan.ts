@@ -4,8 +4,10 @@ import { resolveTargets } from "../config/schema";
 import { getAdapter } from "../adapters/index";
 import { absPath } from "../util/paths";
 import {
-  composedInstructionSource,
+  composedInstructionPath,
+  composedMatches,
   instructionFragmentPath,
+  isComposed,
   resolveInstructionSelection,
   resolveSkillSelection,
   skillPath,
@@ -26,6 +28,12 @@ export interface PlanOp {
   state: LinkState;
   /** A short name for display (skill name or instruction fragment/composite). */
   name: string;
+  /**
+   * For single-file instruction ops: the selected fragments. When there are
+   * 2+ the source is a generated composite under build/ that install/sync
+   * (re)write; plan/status report it as "stale" when out of date.
+   */
+  fragments?: string[];
 }
 
 export interface TargetPlan {
@@ -47,9 +55,18 @@ function buildTargetPlan(target: ResolvedTarget): TargetPlan {
   const fragments = resolveInstructionSelection(target.instructions);
   const mapping = adapter.instructionMapping(homeAbs);
 
-  if (mapping.mode === "single-file") {
-    const source = composedInstructionSource(fragments);
+  if (fragments.length === 0) {
+    // Explicit `instructions: []` — this target manages no instructions.
+  } else if (mapping.mode === "single-file") {
+    const source = composedInstructionPath(fragments);
     const dest = mapping.singleFile!;
+    let state = inspect(dest, source, target.strategy).state;
+    if (isComposed(fragments)) {
+      // The link/copy may be in place while the generated composite is missing
+      // or older than the fragments it was built from.
+      if (state === "linked" && !composedMatches(fragments, source)) state = "stale";
+      if (state === "copied" && !composedMatches(fragments, dest)) state = "stale";
+    }
     ops.push({
       kind: "instruction",
       agent: target.agent,
@@ -58,8 +75,9 @@ function buildTargetPlan(target: ResolvedTarget): TargetPlan {
       strategy: target.strategy,
       source,
       dest,
-      state: inspect(dest, source, target.strategy).state,
+      state,
       name: fragments.length === 1 ? fragments[0] : fragments.join("+"),
+      fragments,
     });
   } else {
     // per-fragment

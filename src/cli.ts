@@ -50,6 +50,7 @@ const STATE_GLYPH: Record<string, string> = {
   copied: "✓",
   "wrong-link": "~",
   "foreign-link": "!",
+  stale: "↻",
   conflict: "✗",
 };
 
@@ -233,7 +234,7 @@ function cmdDoctor(flags: Flags): number {
     if (problems > 0) console.log("  run `status` / `sync` to reconcile, or fix the manifest");
   } else {
     const suggested = {
-      defaults: { strategy: "symlink", instructions: ["base"], skills: "*" },
+      defaults: { strategy: "symlink", instructions: ["applus_base"], skills: "*" },
       targets: report.homes.filter((h) => h.exists).map((h) => ({ agent: h.agent, home: tildify(h.homeAbs) })),
     };
     console.log("\nSuggested .awh.jsonc (save as ./.awh.jsonc or ~/.awh.jsonc):");

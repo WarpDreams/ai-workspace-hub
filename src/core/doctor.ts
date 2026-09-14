@@ -8,6 +8,7 @@ import { absPath } from "../util/paths";
 import { isOurs } from "./link";
 import { loadLedger, type Ledger } from "./state";
 import { buildPlan, type PlanOp } from "./plan";
+import { composedMatches, isComposed } from "./content";
 
 /**
  * `doctor` inspects what is actually deployed on this machine — every agent
@@ -135,14 +136,19 @@ function syncFor(item: DoctorItem, op: PlanOp | undefined): { sync: SyncStatus; 
   if (!item.present) return { sync: "not-installed" };
   if (!item.managed) return { sync: "conflict", detail: "unmanaged path is in the way; `install --force` would replace it" };
 
+  const composite = op.fragments !== undefined && isComposed(op.fragments);
   if (op.strategy === "symlink") {
     if (op.state === "linked") return { sync: "in-sync" };
+    if (op.state === "stale") {
+      return { sync: "out-of-sync", detail: "composed instructions are stale; run `install` or `sync` to regenerate" };
+    }
     if (item.managed === "copy") return { sync: "out-of-sync", detail: "is a copy, manifest wants a symlink" };
     return { sync: "out-of-sync", detail: `links to ${item.linkTarget ?? "?"}, manifest wants ${op.source}` };
   }
   // copy strategy
   if (item.managed === "symlink") return { sync: "out-of-sync", detail: "is a symlink, manifest wants a copy" };
-  return sameContent(op.dest, op.source)
+  const matches = composite ? composedMatches(op.fragments!, op.dest) : sameContent(op.dest, op.source);
+  return matches
     ? { sync: "in-sync" }
     : { sync: "out-of-sync", detail: "copy differs from repo content; run `sync` to refresh" };
 }

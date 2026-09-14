@@ -21,7 +21,7 @@ manifest (git-ignored) declares which agents/homes exist and what each gets.
 
 ```
 content/
-  instructions/base.md         # canonical global instruction(s)
+  instructions/applus_base.md  # canonical global instruction(s)
   skills/<name>/SKILL.md        # canonical skills
 examples/                      # committed, shareable manifest templates
 .awh.jsonc                     # your per-machine config (git-ignored)
@@ -79,6 +79,7 @@ State glyphs in `status`/`plan`:
 ```
 ✓ linked/copied   · missing   ~ wrong-link (ours, elsewhere)
 ! foreign-link (outside repo)  ✗ conflict (real file we didn't create)
+↻ stale (composed instructions out of date — run install/sync)
 ```
 
 ## The manifest
@@ -92,7 +93,7 @@ fully annotated reference.
 {
   "defaults": {
     "strategy": "symlink",     // symlink (default) | copy
-    "instructions": ["base"],  // files under content/instructions (sans .md)
+    "instructions": ["applus_base"],  // files under content/instructions (sans .md)
     "skills": "*"              // "*" = all, or ["name", ...]
   },
   "targets": [
@@ -107,13 +108,22 @@ fully annotated reference.
 Any `defaults` field can be overridden per target. `disabled: true` parses but
 skips a target.
 
+Both `instructions` and `skills` may be omitted (the defaults above apply) or
+set to an empty array `[]`, at the top level or per target. An empty array is
+valid and means "manage none": the target's instruction file(s) and/or skills
+directory are left entirely alone.
+
 ## How install works
 
 - **Instructions**
   - Single-file agents (Claude → `CLAUDE.md`, Codex → `AGENTS.md`): the selected
-    fragments are the source. One fragment → symlink straight to it. Multiple
-    fragments → composed into `build/instructions.<key>.md` (regenerated from the
-    canonical fragments) and linked, preserving one-source-of-truth.
+    fragments are the source. One fragment → symlink straight to it, so edits in
+    the repo are live immediately. Multiple fragments → concatenated in manifest
+    order (blank line between, no added headings) into
+    `build/instructions.<a>+<b>.md` and linked/copied. That composite is written
+    **only by `install` and `sync`**; after editing a fragment, run one of them.
+    `plan`, `status` and `doctor` are read-only and flag the composite as
+    `stale` (↻ / OUT OF SYNC) when it is missing or differs from the fragments.
   - Kiro: each fragment maps to its own `steering/<name>.md`.
 - **Skills**: each selected skill is linked/copied to `<home>/skills/<name>`
   (direct links per agent home — no shared bridge directory).
@@ -121,8 +131,9 @@ skips a target.
 ## Strategies
 
 - **symlink** (default): a single on-disk copy in this repo; agents read through
-  the link. Editing repo content updates every agent immediately. The agent
-  needs the repo present at its path to resolve links.
+  the link. Editing repo content updates every agent immediately (except
+  multi-fragment composites, which need `install`/`sync` to regenerate). The
+  agent needs the repo present at its path to resolve links.
 - **copy**: independent materialized copies. Portable and self-contained; run
   `sync` after editing content to refresh them.
 

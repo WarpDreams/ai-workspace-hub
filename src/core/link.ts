@@ -12,6 +12,7 @@ export type LinkState =
   | "copied" // regular file/dir matching source (copy strategy — best-effort)
   | "wrong-link" // symlink to a different place, but still into our repo
   | "foreign-link" // symlink to somewhere outside our repo
+  | "stale" // link/copy is in place, but the composed source is missing or out of date
   | "conflict"; // a real file/dir we did not create
 
 export interface InspectResult {

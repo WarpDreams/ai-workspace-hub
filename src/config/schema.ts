@@ -22,7 +22,7 @@ const Defaults = z
   .object({
     strategy: z.enum(STRATEGIES).default("symlink"),
     /** Instruction fragment names (files under content/instructions, without .md). */
-    instructions: z.array(z.string().min(1)).default(["base"]),
+    instructions: z.array(z.string().min(1)).default(["applus_base"]),
     skills: SkillSelector.default("*"),
   })
   .strict();

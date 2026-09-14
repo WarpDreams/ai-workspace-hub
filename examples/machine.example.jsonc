@@ -20,7 +20,7 @@
     // content/instructions/ without the .md extension. For single-file agents
     // (Claude/Codex) multiple fragments are composed into one file; for Kiro
     // each fragment becomes its own steering/<name>.md.
-    "instructions": ["base"],
+    "instructions": ["applus_base"],
 
     // "*" installs every skill under content/skills/, or list specific names.
     "skills": "*"
@@ -35,7 +35,7 @@
 
       // Any of these override the defaults for this target only:
       "strategy": "symlink",
-      "instructions": ["base"],
+      "instructions": ["applus_base"],
       "skills": "*"
 
       // "disabled": true  // parse but skip this target

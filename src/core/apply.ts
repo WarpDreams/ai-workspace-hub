@@ -1,4 +1,5 @@
 import { copyPath, makeSymlink, removeIfOurs } from "./link";
+import { isComposed, writeComposedInstructions } from "./content";
 import {
   forgetEntry,
   hasEntry,
@@ -42,8 +43,13 @@ export function applyInstall(plan: Plan, opts: ApplyOptions = {}): ApplyResult {
         });
         continue;
       }
-      if (op.state === "linked") {
-        // Already correct; ensure it is tracked, then move on.
+      // Composite instructions are only materialized here (never by plan/status).
+      const composite = op.fragments !== undefined && isComposed(op.fragments);
+      if (composite && !opts.dryRun) writeComposedInstructions(op.fragments!);
+
+      if (op.state === "linked" || (op.state === "stale" && op.strategy === "symlink")) {
+        // Link already correct (and, for stale, the composite was just
+        // refreshed above); ensure it is tracked, then move on.
         if (!opts.dryRun) {
           recordEntry(ledger, entryFor(op));
         }
