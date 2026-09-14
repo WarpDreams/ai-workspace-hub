@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import type { Manifest, ResolvedTarget } from "../config/schema";
-import { resolveTargets, AGENT_IDS } from "../config/schema";
+import { resolveTargets } from "../config/schema";
 import { getAdapter } from "../adapters/index";
 import { absPath } from "../util/paths";
 
@@ -11,68 +11,42 @@ import { absPath } from "../util/paths";
  *
  * Each adapter names the env var its CLI honours (CLAUDE_CONFIG_DIR,
  * CODEX_HOME, KIRO_HOME) and its default executable. A target may override
- * the executable and leading arguments via `commandline`; anything the user
- * types after the target name on `awh launch <name> ...` is appended verbatim.
+ * the executable and leading arguments via `commandline`, and may prefix
+ * pre-steps (an array: all but the last entry run first and must succeed).
+ * Anything the user types after the target name on `awh launch <name> ...`
+ * is appended verbatim to the final (agent) command.
  */
 
 export class LaunchError extends Error {}
 
 export interface LaunchSpec {
   target: ResolvedTarget;
-  /** Executable (argv[0]). */
+  /** Pre-steps (argv each) to run in order before the agent; each must exit 0. */
+  pre: string[][];
+  /** Agent executable (argv[0]). */
   command: string;
   /** Arguments from `commandline` followed by the user's pass-through args. */
   args: string[];
-  /** Env var name -> absolute home dir. */
+  /** Env var name -> absolute home dir (applied to pre-steps and the agent). */
   env: Record<string, string>;
 }
 
-/** The identifier `launch` accepts for a target: its explicit name. */
-export function launchName(t: ResolvedTarget): string | undefined {
-  return t.name;
+/** The identifier `launch` accepts for a target: its `name`, else its agent id. */
+export function launchName(t: ResolvedTarget): string {
+  return t.name ?? t.agent;
 }
 
-/**
- * Find the target to launch. Matches, in order:
- *   1. a target whose `name` equals `id`
- *   2. `id` is an agent id (claude|codex|kiro) and exactly one target uses that agent
- */
+/** Find the target whose launch name equals `id` (uniqueness is enforced by the schema). */
 export function resolveLaunchTarget(manifest: Manifest, id: string): ResolvedTarget {
   const targets = resolveTargets(manifest);
-
-  const byName = targets.filter((t) => t.name === id);
-  if (byName.length === 1) return byName[0];
-
-  if ((AGENT_IDS as readonly string[]).includes(id)) {
-    const byAgent = targets.filter((t) => t.agent === id);
-    if (byAgent.length === 1) return byAgent[0];
-    if (byAgent.length > 1) {
-      throw new LaunchError(
-        `Several targets use agent "${id}"; give one a "name" and launch by that name.\n` +
-          `Launchable targets:\n${describeTargets(targets)}`,
-      );
-    }
-  }
-
+  const hit = targets.find((t) => launchName(t) === id);
+  if (hit) return hit;
   throw new LaunchError(`No target named "${id}".\nLaunchable targets:\n${describeTargets(targets)}`);
 }
 
 function describeTargets(targets: ResolvedTarget[]): string {
   if (targets.length === 0) return "  (none)";
-  const perAgent = new Map<string, number>();
-  for (const t of targets) perAgent.set(t.agent, (perAgent.get(t.agent) ?? 0) + 1);
-  let unnamed = false;
-  const rows = targets.map((t) => {
-    let id = launchName(t);
-    if (id === undefined && perAgent.get(t.agent) === 1) id = t.agent;
-    if (id === undefined) {
-      id = "(unnamed)";
-      unnamed = true;
-    }
-    return `  ${id.padEnd(16)} ${t.agent.padEnd(7)} ${t.home}`;
-  });
-  if (unnamed) rows.push('  (unnamed): add "name" to the target in the manifest to make it launchable');
-  return rows.join("\n");
+  return targets.map((t) => `  ${launchName(t).padEnd(16)} ${t.agent.padEnd(7)} ${t.home}`).join("\n");
 }
 
 /**
@@ -125,41 +99,58 @@ export function buildLaunch(target: ResolvedTarget, passthrough: string[]): Laun
   const adapter = getAdapter(target.agent);
   const homeAbs = absPath(target.home);
 
-  let argv: string[];
-  if (target.commandline === undefined) {
-    argv = [adapter.launch.command];
-  } else if (Array.isArray(target.commandline)) {
-    argv = [...target.commandline];
-  } else {
-    argv = splitCommandLine(target.commandline);
-  }
-  if (argv.length === 0) {
-    throw new LaunchError(`Target "${launchName(target) ?? target.agent}" has an empty commandline`);
-  }
+  const lines: string[] =
+    target.commandline === undefined
+      ? [adapter.launch.command]
+      : Array.isArray(target.commandline)
+        ? target.commandline
+        : [target.commandline];
+  const argvs = lines.map((line, i) => {
+    const argv = splitCommandLine(line);
+    if (argv.length === 0) throw new LaunchError(`Target "${launchName(target)}": commandline[${i}] is empty`);
+    return argv;
+  });
+  const last = argvs[argvs.length - 1];
 
   return {
     target,
-    command: argv[0],
-    args: [...argv.slice(1), ...passthrough],
+    pre: argvs.slice(0, -1),
+    command: last[0],
+    args: [...last.slice(1), ...passthrough],
     env: adapter.launch.envFor(homeAbs),
   };
 }
 
-/** Run the agent in the foreground, inheriting stdio. Returns its exit code. */
-export function runLaunch(spec: LaunchSpec): number {
-  const res = spawnSync(spec.command, spec.args, {
-    stdio: "inherit",
-    env: { ...process.env, ...spec.env },
-  });
+function runOne(argv: string[], env: Record<string, string>, what: string): number {
+  const res = spawnSync(argv[0], argv.slice(1), { stdio: "inherit", env: { ...process.env, ...env } });
   if (res.error) {
     const code = (res.error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") {
-      throw new LaunchError(`Command not found: ${spec.command} (is the ${spec.target.agent} CLI installed and on PATH?)`);
-    }
+    if (code === "ENOENT") throw new LaunchError(`Command not found: ${argv[0]} (${what})`);
     throw res.error;
   }
   if (res.signal) return 128 + (signalNumber(res.signal) ?? 0);
   return res.status ?? 1;
+}
+
+/**
+ * Run the pre-steps then the agent, all in the foreground with inherited
+ * stdio. A pre-step that exits non-zero aborts the launch with its exit code.
+ */
+export function runLaunch(spec: LaunchSpec): number {
+  const name = launchName(spec.target);
+  for (const argv of spec.pre) {
+    const code = runOne(argv, spec.env, `pre-step of target "${name}"`);
+    if (code !== 0) {
+      console.error(`awh launch: pre-step \`${argv.map(quoteArg).join(" ")}\` exited with code ${code}; not launching ${spec.command}`);
+      return code;
+    }
+  }
+  return runOne([spec.command, ...spec.args], spec.env, `is the ${spec.target.agent} CLI installed and on PATH?`);
+}
+
+/** Quote an argv word for display the way a POSIX shell would need it. */
+export function quoteArg(a: string): string {
+  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(a) ? a : `'${a.replace(/'/g, "'\\''")}'`;
 }
 
 function signalNumber(sig: NodeJS.Signals): number | undefined {

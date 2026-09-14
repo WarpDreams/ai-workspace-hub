@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { findManifest, loadManifest, ManifestError, type LoadedManifest } from "./config/load";
 import { buildDoctorReport, type DoctorHome, type DoctorItem } from "./core/doctor";
-import { buildLaunch, LaunchError, resolveLaunchTarget, runLaunch } from "./core/launch";
+import { buildLaunch, LaunchError, quoteArg as shellQuote, resolveLaunchTarget, runLaunch } from "./core/launch";
 import { buildPlan, type Plan } from "./core/plan";
 import { applyInstall, applySync, applyUninstall, type ApplyResult } from "./core/apply";
 import { allAdapters } from "./adapters/index";
@@ -377,23 +377,23 @@ function cmdLaunch(argv: string[]): number {
     const envStr = Object.entries(spec.env)
       .map(([k, v]) => `${k}=${v}`)
       .join(" ");
-    console.log(`${envStr ? envStr + " " : ""}${[spec.command, ...spec.args].map(shellQuote).join(" ")}`);
+    const prefix = envStr ? envStr + " " : "";
+    for (const argv of spec.pre) console.log(`${prefix}${argv.map(shellQuote).join(" ")}`);
+    console.log(`${prefix}${[spec.command, ...spec.args].map(shellQuote).join(" ")}`);
     return 0;
   }
   return runLaunch(spec);
-}
-
-function shellQuote(s: string): string {
-  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
 }
 
 function launchUsage(): void {
   console.log(`Usage: awh launch [-m <manifest>] [-n] <target> [agent args...]
 
 Starts the target's agent CLI with its home directory env var set
-(CLAUDE_CONFIG_DIR / CODEX_HOME / KIRO_HOME). <target> is a target's "name",
-or an agent id when that agent has exactly one target.
-Everything after <target> is passed to the agent unchanged.
+(CLAUDE_CONFIG_DIR / CODEX_HOME / KIRO_HOME). <target> is a target's "name";
+a target without one is named after its agent (claude / codex / kiro).
+If "commandline" is an array, every entry but the last runs first as a
+pre-step (e.g. "aws sso login") and must succeed. Everything after <target>
+is passed to the agent unchanged.
 
   -m, --manifest <p>  Manifest to read (default: ./.awh.jsonc, then ~/.awh.jsonc)
   -n, --dry-run       Print the env and command instead of running it

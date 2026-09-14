@@ -220,23 +220,30 @@ directory. `awh launch` sets it for you and starts the CLI:
 
 ```jsonc
 "targets": [
-  { "agent": "claude", "home": "~/.claude", "name": "claude" },
+  { "agent": "claude", "home": "~/.claude" },                       // launch name: claude
+  { "agent": "codex",  "home": "~/.codex", "name": "codex" },
   { "agent": "codex",  "home": "~/.codex-bedrock", "name": "codex_bedrock",
-    "commandline": "codex -p bedrock" }
+    "commandline": ["aws sso login --profile bedrock", "codex -p bedrock"] }
 ]
 ```
 
 ```bash
 awh launch claude --model opus          # claude --model opus
-awh launch codex_bedrock exec "fix it"  # CODEX_HOME=~/.codex-bedrock codex -p bedrock exec "fix it"
-awh launch -n codex_bedrock             # dry run: print the env + command only
+awh launch codex_bedrock exec "fix it"  # aws sso login --profile bedrock, then
+                                        # CODEX_HOME=~/.codex-bedrock codex -p bedrock exec "fix it"
+awh launch -n codex_bedrock             # dry run: print the env + every command, run nothing
 ```
 
-- `<target>` is the target's `name`, or the agent id (`claude`, `codex`,
-  `kiro`) when that agent has exactly one target. Names must be unique.
+- `<target>` is the target's `name`; a target without one is named after its
+  agent (`claude`, `codex`, `kiro`). Launch names must be unique, so two
+  targets for the same agent need at least one explicit, distinct `name` —
+  the manifest is rejected otherwise.
 - `commandline` replaces the default executable and may carry leading flags.
-  It is either a shell-style string (quotes honoured, no globbing/variables) or
-  an argv array.
+  It is a shell-style string (quotes honoured; no globbing, variables or
+  pipes) or an **array of such strings run in order**: every entry but the
+  last is a pre-step that must exit 0, the last is the agent. A failing
+  pre-step aborts the launch with its exit code. All of them get the home env
+  var.
 - Everything after `<target>` is passed to the agent verbatim. `awh`'s own
   flags (`-m`, `-n`) are only recognised *before* the target name; a leading
   `--` after the target is dropped.
