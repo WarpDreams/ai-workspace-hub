@@ -1,7 +1,8 @@
 #!/usr/bin/env -S npx tsx
 import fs from "node:fs";
 import path from "node:path";
-import { loadManifest, ManifestError } from "./config/load";
+import { findManifest, loadManifest, ManifestError, type LoadedManifest } from "./config/load";
+import { buildDoctorReport, type DoctorHome, type DoctorItem } from "./core/doctor";
 import { buildPlan, type Plan } from "./core/plan";
 import { applyInstall, applySync, applyUninstall, type ApplyResult } from "./core/apply";
 import { allAdapters } from "./adapters/index";
@@ -144,27 +145,100 @@ function cmdUninstall(flags: Flags): number {
   return 0;
 }
 
-function cmdDoctor(flags: Flags): number {
-  console.log("Scanning for agent homes...\n");
-  const suggestions: { agent: string; home: string }[] = [];
-  for (const adapter of allAdapters()) {
-    for (const cand of adapter.candidateHomes()) {
-      const abs = absPath(cand);
-      const exists = fs.existsSync(abs);
-      console.log(`  ${exists ? "found  " : "absent "} ${adapter.id.padEnd(7)} ${tildify(abs)}`);
-      if (exists) suggestions.push({ agent: adapter.id, home: cand });
-    }
+const SYNC_GLYPH: Record<string, string> = {
+  "in-sync": "✓",
+  "out-of-sync": "~",
+  "not-installed": "·",
+  conflict: "✗",
+  orphan: "!",
+  unmanaged: "-",
+};
+
+const SYNC_TEXT: Record<string, string> = {
+  "in-sync": "in sync",
+  "out-of-sync": "OUT OF SYNC",
+  "not-installed": "not installed",
+  conflict: "CONFLICT",
+  orphan: "ORPHAN",
+  unmanaged: "",
+};
+
+function printDoctorItem(item: DoctorItem): void {
+  const managed = !item.present ? "missing" : item.managed ? `managed (${item.managed})` : "unmanaged";
+  const glyph = item.sync ? SYNC_GLYPH[item.sync] : item.managed ? "✓" : "-";
+  const sync = item.sync ? SYNC_TEXT[item.sync] : "";
+  let line = `    ${glyph} ${item.name.padEnd(26)} ${managed.padEnd(18)} ${sync}`.trimEnd();
+  if (item.detail) line += `\n        ${item.detail}`;
+  console.log(line);
+}
+
+function printDoctorHome(h: DoctorHome): void {
+  let tag = "";
+  if (h.target === undefined) tag = "";
+  else if (h.target === null) tag = "not in manifest";
+  else tag = `in manifest${h.target.label ? ` [${h.target.label}]` : ""}${h.target.disabled ? " (disabled)" : ""}`;
+
+  console.log(`\n${h.agent} (${tildify(h.homeAbs)})  ${tag}`.trimEnd());
+  if (!h.exists) {
+    console.log("    ! home directory does not exist");
+    return;
   }
-  console.log("\nAvailable content:");
+  console.log("  instructions:");
+  if (h.instructions.length === 0) console.log("    (none)");
+  for (const it of h.instructions) printDoctorItem(it);
+  console.log("  skills:");
+  if (h.skills.length === 0) console.log("    (none)");
+  for (const it of h.skills) printDoctorItem(it);
+}
+
+function cmdDoctor(flags: Flags): number {
+  // Honour -m/--manifest exactly like every other command; otherwise fall back
+  // to the usual lookup (cwd, then home). A missing manifest is not an error
+  // for doctor — sync checks are simply skipped.
+  let loaded: LoadedManifest | undefined;
+  const manifestPath = findManifest(flags.manifest);
+  if (manifestPath) loaded = loadManifest(manifestPath);
+
+  const report = buildDoctorReport(loaded);
+
+  if (flags.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return 0;
+  }
+
+  console.log(loaded ? `Manifest: ${tildify(loaded.path)}` : "Manifest: (none found — sync checks skipped)");
+  console.log("\nAgent deployments on this machine:");
+  if (report.homes.length === 0) console.log("  (none found)");
+  for (const h of report.homes) printDoctorHome(h);
+
+  console.log("\nAvailable content in this repo:");
   console.log(`  instructions: ${availableInstructions().join(", ") || "(none)"}`);
   console.log(`  skills:       ${availableSkills().join(", ") || "(none)"}`);
 
-  console.log("\nSuggested .awh.jsonc:");
-  const manifest = {
-    defaults: { strategy: "symlink", instructions: ["base"], skills: "*" },
-    targets: suggestions,
-  };
-  console.log(JSON.stringify(manifest, null, 2));
+  if (loaded) {
+    const items = report.homes.flatMap((h) => [...h.instructions, ...h.skills]);
+    const count = (s: string) => items.filter((i) => i.sync === s).length;
+    const missingHomes = report.homes.filter((h) => h.target && !h.target.disabled && !h.exists).length;
+    const problems = count("out-of-sync") + count("conflict") + count("orphan") + missingHomes;
+    const parts = [
+      `${count("in-sync")} in sync`,
+      `${count("not-installed")} not installed`,
+      `${count("out-of-sync")} out of sync`,
+      `${count("conflict")} conflict(s)`,
+      `${count("orphan")} orphan(s)`,
+    ];
+    if (missingHomes) parts.push(`${missingHomes} missing home dir(s)`);
+    console.log(`\nSummary: ${parts.join(", ")}.`);
+    if (count("not-installed") > 0) console.log("  run `install` to add missing items");
+    if (problems > 0) console.log("  run `status` / `sync` to reconcile, or fix the manifest");
+  } else {
+    const suggested = {
+      defaults: { strategy: "symlink", instructions: ["base"], skills: "*" },
+      targets: report.homes.filter((h) => h.exists).map((h) => ({ agent: h.agent, home: tildify(h.homeAbs) })),
+    };
+    console.log("\nSuggested .awh.jsonc (save as ./.awh.jsonc or ~/.awh.jsonc):");
+    console.log(JSON.stringify(suggested, null, 2));
+  }
   return 0;
 }
 
@@ -214,14 +288,14 @@ Commands:
   install             Create symlinks/copies per the manifest
   sync                Reconcile disk to manifest (install new, prune removed)
   uninstall           Remove links/copies this tool created
-  doctor              Scan the machine and suggest a .awh.jsonc
+  doctor              Scan agent deployments; show managed/unmanaged & sync state
   add-skill <name>    Scaffold a new skill under content/skills/
 
 Options:
   -m, --manifest <p>  Path to manifest (default: ./.awh.jsonc, then ~/.awh.jsonc)
   -f, --force         Replace real files / foreign symlinks on conflict
   -n, --dry-run       Compute actions without writing
-      --json          Machine-readable output (status/plan)
+      --json          Machine-readable output (status/plan/doctor)
   -h, --help          Show this help
 `);
 }

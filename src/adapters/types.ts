@@ -36,8 +36,10 @@ export interface Adapter {
   skillsRoot(homeAbs: string): string;
 
   /**
-   * Default candidate home directories to probe when scanning a machine.
-   * Used by `doctor`. Values may contain a leading ~.
+   * Default home directory(ies) for this agent, probed by `doctor`. Values may
+   * contain a leading ~. `doctor` additionally discovers `~/.<id>-*` siblings
+   * (e.g. ~/.codex-backup) and any home the manifest declares, so only the
+   * canonical default belongs here.
    */
   candidateHomes(): string[];
 }

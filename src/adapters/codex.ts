@@ -22,6 +22,6 @@ export const codexAdapter: Adapter = {
   },
 
   candidateHomes(): string[] {
-    return ["~/.codex", "~/.codex-backup"];
+    return ["~/.codex"];
   },
 };

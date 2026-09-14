@@ -59,11 +59,20 @@ root, `node_modules/.bin/tsx src/cli.ts <command>`.
 | `install`          | Create symlinks/copies per the manifest                         |
 | `sync`             | Reconcile disk to manifest (install new, **prune removed**)      |
 | `uninstall`        | Remove links/copies this tool created                           |
-| `doctor`           | Scan the machine and emit a suggested `.awh.jsonc`              |
+| `doctor`           | Scan agent homes on this machine; show every instruction file and skill, managed or not, and sync state |
 | `add-skill <name>` | Scaffold a new skill under `content/skills/`                    |
 
 Common flags: `-m/--manifest <path>`, `-f/--force` (replace real files or
-foreign symlinks), `-n/--dry-run`, `--json` (for `status`/`plan`).
+foreign symlinks), `-n/--dry-run`, `--json` (for `status`/`plan`/`doctor`).
+
+`doctor` lists every agent home it finds (`~/.claude`, `~/.codex`, `~/.kiro`,
+any `~/.<agent>-*` sibling such as `~/.codex-backup`, and any home the manifest
+names), then every global instruction file and installed skill in each, marked
+`managed (symlink|copy)` or `unmanaged`. With a manifest it also reports sync
+state: `in sync`, `OUT OF SYNC`, `not installed`, `CONFLICT` (unmanaged path
+where the manifest wants ours) or `ORPHAN` (ours, but no longer in the
+manifest). Without a manifest the sync check is skipped and a starter
+`.awh.jsonc` is suggested.
 
 State glyphs in `status`/`plan`:
 
