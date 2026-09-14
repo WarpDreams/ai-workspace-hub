@@ -51,15 +51,17 @@
       // multiple homes of one agent apart, and used by
       // `awh launch <name> [args...]`, which starts this target's CLI with its
       // home env var set (CODEX_HOME here; CLAUDE_CONFIG_DIR for claude,
-      // KIRO_HOME for kiro). Must be unique. Without a name you can still
-      // launch by agent id when that agent has exactly one target.
+      // KIRO_HOME for kiro). A target without a name is launched by its agent
+      // id. Launch names must be unique: two targets for the same agent need
+      // at least one explicit, distinct name.
       "name": "codex",
 
       // Optional. What `launch` runs instead of the bare agent executable
-      // (claude | codex | kiro-cli). Shell-style string or argv array; the
-      // args you give `awh launch` are appended verbatim.
+      // (claude | codex | kiro-cli): a shell-style string, or an array of
+      // them run in order — all but the last are pre-steps that must succeed,
+      // the last is the agent and gets the args you pass to `awh launch`.
       //   "commandline": "codex -p bedrock"
-      //   "commandline": ["codex", "-p", "bedrock"]
+      //   "commandline": ["aws sso login --profile bedrock", "codex -p bedrock"]
 
       // Any of these override the defaults for this target only:
       "strategy": "symlink",
@@ -71,12 +73,13 @@
     },
 
     // A second Codex home using a profile; `awh launch codex_bedrock --full-auto`
-    // runs `CODEX_HOME=~/.codex-bedrock codex -p bedrock --full-auto`.
+    // runs `aws sso login --profile bedrock` and then
+    // `CODEX_HOME=~/.codex-bedrock codex -p bedrock --full-auto`.
     {
       "agent": "codex",
       "home": "~/.codex-bedrock",
       "name": "codex_bedrock",
-      "commandline": "codex -p bedrock"
+      "commandline": ["aws sso login --profile bedrock", "codex -p bedrock"]
     }
   ]
 }

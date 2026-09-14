@@ -41,17 +41,20 @@ const Target = z
     home: z.string().min(1),
     /**
      * Optional identifier: shown in output to tell multiple homes of one agent
-     * apart, and used by `awh launch <name>`. Must be unique across targets.
-     * `launch` falls back to the agent id when that agent has exactly one target.
+     * apart, and used by `awh launch <name>`. When absent the agent id serves
+     * as the name. Effective names must be unique across targets, so two
+     * targets for the same agent need at least one explicit, distinct `name`.
      */
     name: z
       .string()
       .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/, "letters, digits, '_', '.', '-' only; must start with a letter or digit")
       .optional(),
     /**
-     * Optional command `launch` runs instead of the agent's default executable
-     * (claude | codex | kiro-cli). Either a shell-style string ("codex -p bedrock")
-     * or an argv array (["codex", "-p", "bedrock"]). User args are appended.
+     * Optional. What `launch` runs instead of the bare agent executable
+     * (claude | codex | kiro-cli). A shell-style string ("codex -p bedrock"),
+     * or an array of such strings run in order — every entry but the last is
+     * a pre-step that must exit 0 (e.g. "aws sso login"), the last is the
+     * agent and receives the user's extra args.
      */
     commandline: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     /** Per-target overrides of the defaults. */
@@ -79,18 +82,22 @@ export const ManifestSchema = z
   })
   .strict()
   .superRefine((m, ctx) => {
+    // Effective launch name = name ?? agent; must be unique.
     const seen = new Map<string, number>();
     m.targets.forEach((t, i) => {
-      if (t.name === undefined) return;
-      const prev = seen.get(t.name);
+      const eff = t.name ?? t.agent;
+      const prev = seen.get(eff);
       if (prev !== undefined) {
+        const how = (x: typeof t) => (x.name === undefined ? `no "name" (defaults to agent "${x.agent}")` : `"name": "${x.name}"`);
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["targets", i, "name"],
-          message: `duplicate target name "${t.name}" (also used by targets[${prev}])`,
+          path: ["targets", i],
+          message:
+            `launch name "${eff}" is ambiguous: targets[${prev}] has ${how(m.targets[prev])} and targets[${i}] has ${how(t)}; ` +
+            `give at least one of them a distinct "name"`,
         });
       } else {
-        seen.set(t.name, i);
+        seen.set(eff, i);
       }
     });
   });

@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-14
+
+### Changed
+- `launch`: a target without `name` is now launched by its agent id; launch
+  names (`name` ?? `agent`) must be unique, so a manifest with two targets for
+  the same agent and no distinguishing `name` is rejected at load time instead
+  of failing at launch.
+- `commandline` as an array now means a **sequence of commands**: all but the
+  last are pre-steps that must exit 0 (e.g. `"aws sso login"`), the last is
+  the agent. Previously an array was a single argv.
+
 ## [0.1.0] - 2026-09-14
 
 Initial release.
@@ -29,5 +40,6 @@ Initial release.
 - Multi-fragment instruction composition, generated only by `install`/`sync`
   and reported as stale by read-only commands.
 
-[Unreleased]: https://github.com/alienbat/ai-workspace-hub/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/alienbat/ai-workspace-hub/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/alienbat/ai-workspace-hub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alienbat/ai-workspace-hub/releases/tag/v0.1.0
