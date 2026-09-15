@@ -9,6 +9,7 @@ import { allAdapters } from "./adapters/index";
 import { availableSkills, availableInstructions } from "./core/content";
 import { availableMcp, describeDisk, describeSpec, inlineMcpDeclarations } from "./core/mcp";
 import { absPath, tildify } from "./util/paths";
+import { bold, cyan, dim, green, magenta, padVisible, red, setColorEnabled, yellow } from "./util/color";
 import { contentConfigured, contentIndex } from "./core/content";
 
 /** Injected by the esbuild `--define` in `npm run build`; absent when run via tsx. */
@@ -211,35 +212,50 @@ const SYNC_TEXT: Record<string, string> = {
   unmanaged: "",
 };
 
+/** Colour by severity: green = fine, yellow = run sync, red = needs a decision. */
+const SYNC_COLOR: Record<string, (s: string) => string> = {
+  "in-sync": green,
+  "out-of-sync": yellow,
+  "not-installed": dim,
+  conflict: red,
+  orphan: yellow,
+  unmanaged: dim,
+};
+
 function printDoctorItem(item: DoctorItem): void {
-  const managed = !item.present ? "missing" : item.managed ? `managed (${item.managed})` : "unmanaged";
-  const glyph = item.sync ? SYNC_GLYPH[item.sync] : item.managed ? "✓" : "-";
-  const sync = item.sync ? SYNC_TEXT[item.sync] : "";
-  let line = `    ${glyph} ${item.name.padEnd(26)} ${managed.padEnd(18)} ${sync}`.trimEnd();
-  if (item.detail) line += `\n        ${item.detail}`;
+  const managedText = !item.present ? "missing" : item.managed ? `managed (${item.managed})` : "unmanaged";
+  const paint = item.sync ? SYNC_COLOR[item.sync] : item.managed ? green : dim;
+  const glyph = paint(item.sync ? SYNC_GLYPH[item.sync] : item.managed ? "✓" : "-");
+  const name = item.managed ? item.name : dim(item.name);
+  const managed = item.managed ? cyan(managedText) : dim(managedText);
+  // Paint only non-empty labels: an empty coloured string still carries escape
+  // codes, which would defeat the trimEnd() below and leave trailing blanks.
+  const syncText = item.sync ? SYNC_TEXT[item.sync] : "";
+  const sync = syncText ? paint(syncText) : "";
+  let line = (sync ? `    ${glyph} ${padVisible(name, 26)} ${padVisible(managed, 18)} ${sync}` : `    ${glyph} ${padVisible(name, 26)} ${managed}`).trimEnd();
+  if (item.detail) line += `\n        ${dim(item.detail)}`;
   console.log(line);
 }
 
 function printDoctorHome(h: DoctorHome): void {
   let tag = "";
   if (h.target === undefined) tag = "";
-  else if (h.target === null) tag = "not in manifest";
-  else tag = `in manifest${h.target.name ? ` [${h.target.name}]` : ""}${h.target.disabled ? " (disabled)" : ""}`;
+  else if (h.target === null) tag = dim("not in manifest");
+  else tag = cyan(`in manifest${h.target.name ? ` [${h.target.name}]` : ""}${h.target.disabled ? " (disabled)" : ""}`);
 
-  console.log(`\n${h.agent} (${tildify(h.homeAbs)})  ${tag}`.trimEnd());
+  console.log(`\n${bold(h.agent)} ${dim(`(${tildify(h.homeAbs)})`)}  ${tag}`.trimEnd());
   if (!h.exists) {
-    console.log("    ! home directory does not exist");
+    console.log(`    ${red("!")} ${red("home directory does not exist")}`);
     return;
   }
-  console.log("  instructions:");
-  if (h.instructions.length === 0) console.log("    (none)");
-  for (const it of h.instructions) printDoctorItem(it);
-  console.log("  skills:");
-  if (h.skills.length === 0) console.log("    (none)");
-  for (const it of h.skills) printDoctorItem(it);
-  console.log("  mcp servers:");
-  if (h.mcp.length === 0) console.log("    (none)");
-  for (const it of h.mcp) printDoctorItem(it);
+  const section = (label: string, items: DoctorItem[]) => {
+    console.log(`  ${bold(label)}`);
+    if (items.length === 0) console.log(`    ${dim("(none)")}`);
+    for (const it of items) printDoctorItem(it);
+  };
+  section("instructions:", h.instructions);
+  section("skills:", h.skills);
+  section("mcp servers:", h.mcp);
 }
 
 function cmdDoctor(flags: Flags): number {
@@ -250,6 +266,8 @@ function cmdDoctor(flags: Flags): number {
   const manifestPath = findManifest(flags.manifest);
   if (manifestPath) loaded = loadManifest(manifestPath);
 
+  // Colour is opt-in via the manifest; --json output is never coloured.
+  setColorEnabled(!flags.json && (loaded?.manifest.color_output ?? false));
   const report = buildDoctorReport(loaded);
 
   if (flags.json) {
@@ -257,30 +275,40 @@ function cmdDoctor(flags: Flags): number {
     return 0;
   }
 
-  console.log(loaded ? `Manifest: ${tildify(loaded.path)}` : "Manifest: (none found — sync checks skipped)");
-  console.log("\nAgent deployments on this machine:");
-  if (report.homes.length === 0) console.log("  (none found)");
+  console.log(
+    loaded ? `${bold("Manifest:")} ${tildify(loaded.path)}` : `${bold("Manifest:")} ${dim("(none found — sync checks skipped)")}`,
+  );
+  console.log(`\n${bold("Agent deployments on this machine:")}`);
+  if (report.homes.length === 0) console.log(`  ${dim("(none found)")}`);
   for (const h of report.homes) printDoctorHome(h);
 
   if (contentConfigured()) {
     const idx = contentIndex();
-    console.log(`\nContent search paths: ${idx.searchPaths.map(tildify).join(", ")}`);
-    console.log(`  instructions: ${availableInstructions().join(", ") || "(none)"}`);
-    console.log(`  skills:       ${availableSkills().join(", ") || "(none)"}`);
-    console.log(`  mcp:          ${availableMcp().join(", ") || "(none)"}`);
+    console.log(`\n${bold("Content search paths:")} ${idx.searchPaths.map(tildify).join(", ")}`);
+    const list = (v: string[]) => (v.length ? v.join(", ") : dim("(none)"));
+    console.log(`  instructions: ${list(availableInstructions())}`);
+    console.log(`  skills:       ${list(availableSkills())}`);
+    console.log(`  mcp:          ${list(availableMcp())}`);
     const inline = loaded ? inlineMcpDeclarations(loaded.manifest, loaded.path) : [];
     if (inline.length) {
       const discovered = new Set(availableMcp());
-      console.log(`  mcp (inline): ${inline.map((s) => `${s.name} [${s.file.slice(s.file.indexOf("#") + 1).replace(/\.mcp\..*$/, "")}]`).join(", ")}`);
+      console.log(
+        `  mcp (inline): ${inline
+          .map((s) => `${s.name} ${dim(`[${s.file.slice(s.file.indexOf("#") + 1).replace(/\.mcp\..*$/, "")}]`)}`)
+          .join(", ")}`,
+      );
       for (const s of inline.filter((s) => discovered.has(s.name))) {
-        console.log(`  ! inline mcp "${s.name}" (${s.file.slice(s.file.indexOf("#") + 1)}) shadows the discovered spec of the same name`);
+        const where = s.file.slice(s.file.indexOf("#") + 1);
+        console.log(
+          `  ${yellow("!")} ${yellow(`inline mcp "${s.name}"`)} ${dim(`(${where})`)} ${yellow("shadows the discovered spec of the same name")}`,
+        );
       }
     }
     if (idx.shadowed.length) {
-      console.log("  ! name collisions (the later occurrence wins):");
+      console.log(`  ${yellow("!")} ${yellow("name collisions (the later occurrence wins):")}`);
       for (const s of idx.shadowed) {
-        console.log(`    ${s.kind.padEnd(11)} ${s.name.padEnd(24)} using ${tildify(s.winner.path)}`);
-        console.log(`    ${"".padEnd(11)} ${"".padEnd(24)} shadows ${tildify(s.loser.path)}`);
+        console.log(`    ${magenta(s.kind.padEnd(11))} ${s.name.padEnd(24)} using ${tildify(s.winner.path)}`);
+        console.log(`    ${"".padEnd(11)} ${"".padEnd(24)} ${dim(`shadows ${tildify(s.loser.path)}`)}`);
       }
     }
   }
@@ -290,23 +318,25 @@ function cmdDoctor(flags: Flags): number {
     const count = (s: string) => items.filter((i) => i.sync === s).length;
     const missingHomes = report.homes.filter((h) => h.target && !h.target.disabled && !h.exists).length;
     const problems = count("out-of-sync") + count("conflict") + count("orphan") + missingHomes;
+    // Zero counts stay dim so the eye lands on what actually needs attention.
+    const part = (n: number, label: string, paint: (s: string) => string) => (n > 0 ? paint(`${n} ${label}`) : dim(`${n} ${label}`));
     const parts = [
-      `${count("in-sync")} in sync`,
-      `${count("not-installed")} not installed`,
-      `${count("out-of-sync")} out of sync`,
-      `${count("conflict")} conflict(s)`,
-      `${count("orphan")} orphan(s)`,
+      part(count("in-sync"), "in sync", green),
+      part(count("not-installed"), "not installed", cyan),
+      part(count("out-of-sync"), "out of sync", yellow),
+      part(count("conflict"), "conflict(s)", red),
+      part(count("orphan"), "orphan(s)", yellow),
     ];
-    if (missingHomes) parts.push(`${missingHomes} missing home dir(s)`);
-    console.log(`\nSummary: ${parts.join(", ")}.`);
-    if (count("not-installed") > 0) console.log("  run `install` to add missing items");
-    if (problems > 0) console.log("  run `status` / `sync` to reconcile, or fix the manifest");
+    if (missingHomes) parts.push(red(`${missingHomes} missing home dir(s)`));
+    console.log(`\n${bold("Summary:")} ${parts.join(", ")}.`);
+    if (count("not-installed") > 0) console.log(`  ${cyan("run `install` to add missing items")}`);
+    if (problems > 0) console.log(`  ${yellow("run `status` / `sync` to reconcile, or fix the manifest")}`);
   } else {
     const suggested = {
       defaults: { strategy: "symlink", instructions: ["applus_base"], skills: "*", mcp: [] as string[] },
       targets: report.homes.filter((h) => h.exists).map((h) => ({ agent: h.agent, home: tildify(h.homeAbs) })),
     };
-    console.log("\nSuggested .awh.jsonc (save as ./.awh.jsonc or ~/.awh.jsonc):");
+    console.log(`\n${bold("Suggested .awh.jsonc")} (save as ./.awh.jsonc or ~/.awh.jsonc):`);
     console.log(JSON.stringify(suggested, null, 2));
   }
   return 0;
