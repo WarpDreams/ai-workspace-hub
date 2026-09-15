@@ -115,7 +115,7 @@ State glyphs in `status`/`plan`:
     "strategy": "symlink",            // symlink (default) | copy
     "instructions": ["applus_base"],  // discovered fragment names, or paths to .md files
     "skills": "*",                    // "*" = every discovered skill, or names / paths to skill dirs
-    "mcp": []                         // discovered MCP spec names, or paths; default [] (opt in)
+    "mcp": []                         // MCP specs: names, paths, or inline { name: spec }; default []
   },
   "targets": [
     { "agent": "codex",  "home": "~/.codex", "name": "codex" },
@@ -181,7 +181,26 @@ Each `<name>.jsonc` under an `mcp/` directory holds one public MCP server, in th
 
 Optional fields: `env` (stdio), `agents: ["claude", ...]` to restrict which
 agents get it, `login: false` to skip the post-add login for an http server.
-Select servers with `"mcp": "*" | ["notion", ...] | []` in the manifest.
+
+Select servers with the manifest's `mcp` selector, at the top level or per
+target. It is `"*"` (every discovered spec) or an array mixing:
+
+```jsonc
+"mcp": [
+  "*",                                                            // every discovered spec
+  "context7",                                                     // a discovered spec by name
+  "../shared/mcp/notion.jsonc",                                   // a spec file by path
+  { "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] } },  // inline
+  { "notion": { "url": "https://mcp.notion.com/mcp" }, "other": { "url": "…" } }
+]
+```
+
+An inline entry is `{ "<name>": { …spec } }` with the same fields as a spec
+file; one object may declare several servers. Inline declarations win over a
+discovered or path entry of the same name (`doctor` warns), and declaring one
+name inline twice in the same list is an error. Inline is handy for
+machine-specific or one-off servers; a spec file in the content repo is the
+form to reuse across machines.
 
 **awh never edits an agent's config file for MCP.** `install`/`sync`/
 `uninstall` drive each agent's own CLI, in the foreground, one command at a

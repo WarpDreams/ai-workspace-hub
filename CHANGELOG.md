@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- MCP servers can be declared inline in the manifest's `mcp` selector as
+  `{ "<name>": { ...spec } }` objects, mixed with discovered names, paths and
+  `"*"`. Inline wins over a discovered spec of the same name; `doctor` lists
+  inline declarations and warns about such shadowing.
+
 ## [0.2.0] - 2026-09-14
 
 ### Changed

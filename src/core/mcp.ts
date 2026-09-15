@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
-import { z } from "zod";
-import { AGENT_IDS, type AgentId, type SkillSelector } from "../config/schema";
+import { McpSpecSchema, type AgentId, type Manifest, type McpSelector, type McpSpecInput } from "../config/schema";
 import { absPathFrom } from "../util/paths";
 import { contentIndex, looksLikePath } from "./content";
 
 /**
  * Canonical MCP server definitions are <name>.jsonc files under a directory
- * named `mcp` in a content search path, in the
+ * named `mcp` in a content search path, or `{ name: spec }` objects embedded
+ * in the manifest's `mcp` selector, in the
  * de-facto standard `mcpServers` entry shape (command/args/env or url).
  * Only "public" servers are in scope: hosted HTTP endpoints, or packages run
  * through a runner such as npx/uvx. Nothing here is written to agent config
@@ -16,32 +16,6 @@ import { contentIndex, looksLikePath } from "./content";
  */
 
 export type McpTransport = "stdio" | "http";
-
-const McpSpecSchema = z
-  .object({
-    type: z.enum(["stdio", "http"]).optional(),
-    command: z.string().min(1).optional(),
-    args: z.array(z.string()).default([]),
-    env: z.record(z.string()).default({}),
-    url: z.string().url().optional(),
-    /** Restrict to these agents; default: every agent. */
-    agents: z.array(z.enum(AGENT_IDS)).optional(),
-    /**
-     * For http servers: run the agent's interactive login after adding, where
-     * the add itself does not already do so. Default true.
-     */
-    login: z.boolean().default(true),
-    description: z.string().optional(),
-  })
-  .strict()
-  .superRefine((s, ctx) => {
-    const type = s.type ?? (s.url ? "http" : "stdio");
-    if (type === "stdio" && !s.command) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "stdio server needs `command`" });
-    if (type === "http" && !s.url) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "http server needs `url`" });
-    if (type === "http" && (s.command || s.args.length)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "http server must not have `command`/`args`" });
-    }
-  });
 
 export interface McpSpec {
   name: string;
@@ -53,8 +27,26 @@ export interface McpSpec {
   agents?: AgentId[];
   login: boolean;
   description?: string;
-  /** Absolute path of the .jsonc this came from. */
+  /** Absolute path of the .jsonc this came from, or `<manifest>#mcp.<name>` when inline. */
   file: string;
+  /** True when declared inline in the manifest rather than in a spec file. */
+  inline: boolean;
+}
+
+function fromInput(name: string, s: McpSpecInput, file: string, inline: boolean): McpSpec {
+  return {
+    name,
+    type: s.type ?? (s.url ? "http" : "stdio"),
+    command: s.command,
+    args: s.args,
+    env: s.env,
+    url: s.url,
+    agents: s.agents,
+    login: s.login,
+    description: s.description,
+    file,
+    inline,
+  };
 }
 
 /** Names of discovered MCP specs. */
@@ -84,31 +76,64 @@ export function loadMcpSpec(entry: string): McpSpec {
     const d = res.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
     throw new Error(`Invalid MCP spec ${file}:\n${d}`);
   }
-  const s = res.data;
-  return {
-    name,
-    type: s.type ?? (s.url ? "http" : "stdio"),
-    command: s.command,
-    args: s.args,
-    env: s.env,
-    url: s.url,
-    agents: s.agents,
-    login: s.login,
-    description: s.description,
-    file,
-  };
+  return fromInput(name, res.data, file, false);
 }
 
-/** Resolve a manifest `mcp` selector ("*" | [names/paths]) against the mcp root. */
-export function resolveMcpSelection(sel: SkillSelector): string[] {
-  if (sel === "*") return availableMcp();
-  const missing = sel.filter((s) => !fs.existsSync(mcpSpecPath(s)));
-  if (missing.length) {
-    throw new Error(
-      `MCP spec(s) not found: ${missing.map(mcpSpecPath).join(", ")}. Discovered (under mcp/ dirs in the search paths): ${availableMcp().join(", ") || "(none)"}`,
-    );
+/**
+ * Resolve a manifest `mcp` selector to specs. Entries: "*" (every discovered
+ * spec), a discovered name, a path to a spec file, or an inline
+ * `{ name: spec }` object. Inline wins over a discovered/path entry of the
+ * same name; two inline declarations of one name are an error.
+ * `origin` labels inline specs (e.g. "defaults" or "targets[1]").
+ */
+export function resolveMcpSpecs(sel: McpSelector, manifestPath: string, origin: string): McpSpec[] {
+  const entries = sel === "*" ? ["*"] : sel;
+  const byName = new Map<string, McpSpec>();
+  const inlineNames = new Set<string>();
+
+  const putFile = (spec: McpSpec) => {
+    if (inlineNames.has(spec.name)) return; // inline already declared: it wins
+    byName.set(spec.name, spec);
+  };
+
+  for (const e of entries) {
+    if (typeof e === "string") {
+      if (e === "*") {
+        for (const n of availableMcp()) putFile(loadMcpSpec(n));
+        continue;
+      }
+      if (!fs.existsSync(mcpSpecPath(e))) {
+        throw new Error(
+          `MCP spec not found: ${mcpSpecPath(e)}. Discovered (under mcp/ dirs in the search paths): ${availableMcp().join(", ") || "(none)"}`,
+        );
+      }
+      putFile(loadMcpSpec(e));
+      continue;
+    }
+    for (const [name, input] of Object.entries(e)) {
+      if (inlineNames.has(name)) {
+        throw new Error(`MCP server "${name}" is declared inline more than once in ${origin}.mcp`);
+      }
+      inlineNames.add(name);
+      byName.set(name, fromInput(name, input, `${manifestPath}#${origin}.mcp.${name}`, true));
+    }
   }
-  return sel;
+  return [...byName.values()];
+}
+
+/** Every inline MCP declaration in the manifest (defaults + targets), for doctor. */
+export function inlineMcpDeclarations(manifest: Manifest, manifestPath: string): McpSpec[] {
+  const out: McpSpec[] = [];
+  const collect = (sel: McpSelector | undefined, origin: string) => {
+    if (!sel || sel === "*") return;
+    for (const e of sel) {
+      if (typeof e === "string") continue;
+      for (const [name, input] of Object.entries(e)) out.push(fromInput(name, input, `${manifestPath}#${origin}.mcp.${name}`, true));
+    }
+  };
+  collect(manifest.defaults.mcp, "defaults");
+  manifest.targets.forEach((t, i) => collect(t.mcp, `targets[${i}]`));
+  return out;
 }
 
 /** What an agent currently has configured for one server, normalized. */

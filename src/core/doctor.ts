@@ -195,7 +195,7 @@ export function buildDoctorReport(loaded?: { path: string; manifest: Manifest })
   const opsByHome = new Map<string, Map<string, PlanOp>>();
   const mcpByHome = new Map<string, Map<string, McpOp>>();
   if (loaded) {
-    for (const tp of buildPlan(loaded.manifest).targets) {
+    for (const tp of buildPlan(loaded.manifest, loaded.path).targets) {
       const m = new Map<string, PlanOp>();
       for (const op of tp.ops) m.set(op.dest, op);
       opsByHome.set(targetKey(tp.target.agent, tp.homeAbs), m);

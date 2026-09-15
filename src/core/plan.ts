@@ -13,7 +13,7 @@ import {
 } from "./content";
 import { inspect, type LinkState } from "./link";
 import { hasEntry, loadLedger, mcpLedgerKey, type Ledger } from "./state";
-import { loadMcpSpec, resolveMcpSelection, specMatches, type McpServerOnDisk, type McpSpec } from "./mcp";
+import { resolveMcpSpecs, specMatches, type McpServerOnDisk, type McpSpec } from "./mcp";
 import type { AgentId } from "../config/schema";
 
 export interface PlanOp {
@@ -69,15 +69,15 @@ export interface Plan {
   targets: TargetPlan[];
 }
 
-function buildMcpOps(target: ResolvedTarget, homeAbs: string, ledger: Ledger): McpOp[] {
+function buildMcpOps(target: ResolvedTarget, homeAbs: string, ledger: Ledger, manifestPath: string): McpOp[] {
   const adapter = getAdapter(target.agent);
-  const names = resolveMcpSelection(target.mcp);
-  if (names.length === 0) return [];
+  const specs = resolveMcpSpecs(target.mcp, manifestPath, target.mcpOrigin);
+  if (specs.length === 0) return [];
   const onDisk = adapter.mcp.readServers(homeAbs);
   const configFile = adapter.mcp.configFile(homeAbs);
   const out: McpOp[] = [];
-  for (const name of names) {
-    const spec = loadMcpSpec(name);
+  for (const spec of specs) {
+    const name = spec.name;
     if (spec.agents && !spec.agents.includes(target.agent)) continue;
     const managed = hasEntry(ledger, mcpLedgerKey(target.agent, homeAbs, name));
     const existing = onDisk[name];
@@ -98,7 +98,7 @@ function buildMcpOps(target: ResolvedTarget, homeAbs: string, ledger: Ledger): M
   return out;
 }
 
-function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
+function buildTargetPlan(target: ResolvedTarget, ledger: Ledger, manifestPath: string): TargetPlan {
   const adapter = getAdapter(target.agent);
   const homeAbs = absPath(target.home);
   const ops: PlanOp[] = [];
@@ -166,11 +166,11 @@ function buildTargetPlan(target: ResolvedTarget, ledger: Ledger): TargetPlan {
     });
   }
 
-  return { target, homeAbs, ops, mcp: buildMcpOps(target, homeAbs, ledger) };
+  return { target, homeAbs, ops, mcp: buildMcpOps(target, homeAbs, ledger, manifestPath) };
 }
 
-export function buildPlan(manifest: Manifest): Plan {
-  const resolved = resolveTargets(manifest).filter((t) => !t.disabled);
+export function buildPlan(manifest: Manifest, manifestPath = "(manifest)"): Plan {
   const ledger = loadLedger();
-  return { targets: resolved.map((t) => buildTargetPlan(t, ledger)) };
+  const resolved = resolveTargets(manifest).filter((t) => !t.disabled);
+  return { targets: resolved.map((t) => buildTargetPlan(t, ledger, manifestPath)) };
 }

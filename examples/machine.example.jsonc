@@ -34,11 +34,17 @@
     // directories (each must contain SKILL.md).
     "skills": "*",
 
-    // MCP servers: discovered spec names (or paths to .jsonc files), added
-    // through each agent's own CLI
-    // (`claude mcp add-json`, `codex mcp add`, `kiro-cli mcp add`). Hosted
-    // servers open a browser login during install. "*", a list, or [] (default).
-    "mcp": ["context7", "notion", "playwright"]
+    // MCP servers, added through each agent's own CLI (`claude mcp add-json`,
+    // `codex mcp add`, `kiro-cli mcp add`); hosted servers open a browser
+    // login during install. "*" (every discovered spec), or a list mixing
+    // "*", discovered names, paths to spec files, and inline declarations
+    // { "<name>": { ...spec } } (same fields as a spec file; inline wins over
+    // a discovered spec of the same name). Default [].
+    "mcp": [
+      "context7",
+      "notion",
+      { "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] } }
+    ]
   },
 
   // One entry per (agent, home). Repeat an agent for multiple homes.
