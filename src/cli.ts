@@ -7,7 +7,7 @@ import { buildPlan, type Plan } from "./core/plan";
 import { applyInstall, applySync, applyUninstall, type ApplyResult } from "./core/apply";
 import { allAdapters } from "./adapters/index";
 import { availableSkills, availableInstructions } from "./core/content";
-import { availableMcp, describeDisk, describeSpec } from "./core/mcp";
+import { availableMcp, describeDisk, describeSpec, inlineMcpDeclarations } from "./core/mcp";
 import { absPath, tildify } from "./util/paths";
 import { contentConfigured, contentIndex } from "./core/content";
 
@@ -75,7 +75,7 @@ function targetLabel(agent: string, home: string, name?: string): string {
 
 function loadPlanOrExit(flags: Flags): { plan: Plan; manifestPath: string } {
   const { path: manifestPath, manifest } = loadManifest(flags.manifest);
-  const plan = buildPlan(manifest);
+  const plan = buildPlan(manifest, manifestPath);
   return { plan, manifestPath };
 }
 
@@ -268,6 +268,14 @@ function cmdDoctor(flags: Flags): number {
     console.log(`  instructions: ${availableInstructions().join(", ") || "(none)"}`);
     console.log(`  skills:       ${availableSkills().join(", ") || "(none)"}`);
     console.log(`  mcp:          ${availableMcp().join(", ") || "(none)"}`);
+    const inline = loaded ? inlineMcpDeclarations(loaded.manifest, loaded.path) : [];
+    if (inline.length) {
+      const discovered = new Set(availableMcp());
+      console.log(`  mcp (inline): ${inline.map((s) => `${s.name} [${s.file.slice(s.file.indexOf("#") + 1).replace(/\.mcp\..*$/, "")}]`).join(", ")}`);
+      for (const s of inline.filter((s) => discovered.has(s.name))) {
+        console.log(`  ! inline mcp "${s.name}" (${s.file.slice(s.file.indexOf("#") + 1)}) shadows the discovered spec of the same name`);
+      }
+    }
     if (idx.shadowed.length) {
       console.log("  ! name collisions (the later occurrence wins):");
       for (const s of idx.shadowed) {

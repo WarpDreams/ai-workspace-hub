@@ -18,6 +18,52 @@ export type Strategy = (typeof STRATEGIES)[number];
 const SkillSelector = z.union([z.literal("*"), z.array(z.string().min(1))]);
 export type SkillSelector = z.infer<typeof SkillSelector>;
 
+/**
+ * One MCP server definition, in the de-facto standard `mcpServers` entry
+ * shape. Used both for `<name>.jsonc` spec files and for declarations
+ * embedded in the manifest.
+ */
+export const McpSpecSchema = z
+  .object({
+    type: z.enum(["stdio", "http"]).optional(),
+    command: z.string().min(1).optional(),
+    args: z.array(z.string()).default([]),
+    env: z.record(z.string()).default({}),
+    url: z.string().url().optional(),
+    /** Restrict to these agents; default: every agent. */
+    agents: z.array(z.enum(AGENT_IDS)).optional(),
+    /**
+     * For http servers: run the agent's interactive login after adding, where
+     * the add itself does not already do so. Default true.
+     */
+    login: z.boolean().default(true),
+    description: z.string().optional(),
+  })
+  .strict()
+  .superRefine((s, ctx) => {
+    const type = s.type ?? (s.url ? "http" : "stdio");
+    if (type === "stdio" && !s.command) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "stdio server needs `command`" });
+    if (type === "http" && !s.url) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "http server needs `url`" });
+    if (type === "http" && (s.command || s.args.length)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "http server must not have `command`/`args`" });
+    }
+  });
+export type McpSpecInput = z.infer<typeof McpSpecSchema>;
+
+/** `{ "<name>": { ...spec }, ... }` — one or more servers declared inline. */
+const McpInline = z.record(z.string().regex(/^[A-Za-z0-9][\w.-]*$/, "server name: letters, digits, _ . -"), McpSpecSchema);
+export type McpInline = z.infer<typeof McpInline>;
+
+/**
+ * MCP selector: "*" (every discovered spec), or an array whose entries are
+ * "*", a discovered spec name, a path to a spec file, or an inline
+ * `{ name: spec }` object. Inline declarations win over discovered specs of
+ * the same name.
+ */
+const McpSelector = z.union([z.literal("*"), z.array(z.union([z.string().min(1), McpInline]))]);
+export type McpSelector = z.infer<typeof McpSelector>;
+export type McpSelectorEntry = string | McpInline;
+
 const Defaults = z
   .object({
     strategy: z.enum(STRATEGIES).default("symlink"),
@@ -29,7 +75,7 @@ const Defaults = z
      * drives each agent's own `mcp add` CLI and may open browser logins, so
      * opt in explicitly.
      */
-    mcp: SkillSelector.default([]),
+    mcp: McpSelector.default([]),
   })
   .strict();
 export type Defaults = z.infer<typeof Defaults>;
@@ -61,7 +107,7 @@ const Target = z
     strategy: z.enum(STRATEGIES).optional(),
     instructions: z.array(z.string().min(1)).optional(),
     skills: SkillSelector.optional(),
-    mcp: SkillSelector.optional(),
+    mcp: McpSelector.optional(),
     /** When true, this target is parsed but skipped by plan/apply. */
     disabled: z.boolean().optional(),
   })
@@ -113,13 +159,15 @@ export interface ResolvedTarget {
   strategy: Strategy;
   instructions: string[];
   skills: SkillSelector;
-  mcp: SkillSelector;
+  mcp: McpSelector;
+  /** Where `mcp` came from: "defaults" or "targets[<i>]" (for inline spec origins/errors). */
+  mcpOrigin: string;
   disabled: boolean;
 }
 
 export function resolveTargets(manifest: Manifest): ResolvedTarget[] {
   const d = manifest.defaults;
-  return manifest.targets.map((t) => ({
+  return manifest.targets.map((t, i) => ({
     agent: t.agent,
     home: t.home,
     name: t.name,
@@ -128,6 +176,7 @@ export function resolveTargets(manifest: Manifest): ResolvedTarget[] {
     instructions: t.instructions ?? d.instructions,
     skills: t.skills ?? d.skills,
     mcp: t.mcp ?? d.mcp,
+    mcpOrigin: t.mcp !== undefined ? `targets[${i}]` : "defaults",
     disabled: t.disabled ?? false,
   }));
 }
