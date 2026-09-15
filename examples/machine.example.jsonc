@@ -16,6 +16,10 @@
   // are MCP specs. On name clashes the LATER path wins (doctor warns).
   "content_search_paths": ["."],
 
+  // Optional. Colourise `doctor` output (default false). Ignored when stdout
+  // is not a terminal or $NO_COLOR is set.
+  "color_output": false,
+
   // Optional. Applied to every target unless the target overrides them.
   "defaults": {
     // "symlink" (default): one copy on disk in this repo; agents read via a

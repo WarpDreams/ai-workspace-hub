@@ -123,6 +123,11 @@ export const ManifestSchema = z
      * ones on name collisions.
      */
     content_search_paths: z.array(z.string().min(1)).min(1).default(["."]),
+    /**
+     * Colourise `doctor` output. Default false. Ignored (no colour) when
+     * stdout is not a TTY or $NO_COLOR is set.
+     */
+    color_output: z.boolean().default(false),
     defaults: Defaults.default({}),
     targets: z.array(Target).min(1),
   })

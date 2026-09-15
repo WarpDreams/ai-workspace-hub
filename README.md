@@ -83,6 +83,11 @@ Common flags: `-m/--manifest <path>`, `-f/--force` (replace real files,
 foreign symlinks or foreign MCP entries), `-n/--dry-run`, `--json` (for
 `status`/`plan`/`doctor`).
 
+Set `"color_output": true` in the manifest to colourise `doctor` output
+(green in sync, yellow needs a `sync`, red needs a decision, dim for
+unmanaged). It is off by default, and suppressed anyway when stdout is not a
+terminal or `$NO_COLOR` is set, so piped and `--json` output stays plain.
+
 `doctor` lists every agent home it finds (`~/.claude`, `~/.codex`, `~/.kiro`,
 any `~/.<agent>-*` sibling such as `~/.codex-backup`, and any home the manifest
 names), then every global instruction file, installed skill and user-scope MCP
@@ -110,6 +115,9 @@ State glyphs in `status`/`plan`:
   // Optional. Directories scanned for content: absolute / ~ / relative to this
   // file. Default ["."]. Later entries override earlier ones on name clashes.
   "content_search_paths": [".", "~/works/team-shared-content"],
+
+  // Optional. Colourise `doctor` output. Default false.
+  "color_output": true,
 
   "defaults": {
     "strategy": "symlink",            // symlink (default) | copy

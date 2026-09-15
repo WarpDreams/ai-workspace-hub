@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `color_output` (boolean, default false) in the manifest: colourises `doctor`
+  output by severity. Suppressed when stdout is not a TTY, when `$NO_COLOR` is
+  set, and for `--json`.
 - MCP servers can be declared inline in the manifest's `mcp` selector as
   `{ "<name>": { ...spec } }` objects, mixed with discovered names, paths and
   `"*"`. Inline wins over a discovered spec of the same name; `doctor` lists
