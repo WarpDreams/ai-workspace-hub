@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { findManifest, loadManifest, ManifestError, type LoadedManifest } from "./config/load";
-import { buildDoctorReport, type DoctorHome, type DoctorItem } from "./core/doctor";
+import { buildDoctorReport, suggestManifest, type DoctorHome, type DoctorItem } from "./core/doctor";
 import { buildLaunch, LaunchError, quoteArg as shellQuote, resolveLaunchTarget, runLaunch } from "./core/launch";
 import { buildPlan, type Plan } from "./core/plan";
 import { applyInstall, applySync, applyUninstall, type ApplyResult } from "./core/apply";
@@ -332,12 +332,21 @@ function cmdDoctor(flags: Flags): number {
     if (count("not-installed") > 0) console.log(`  ${cyan("run `install` to add missing items")}`);
     if (problems > 0) console.log(`  ${yellow("run `status` / `sync` to reconcile, or fix the manifest")}`);
   } else {
-    const suggested = {
-      defaults: { strategy: "symlink", instructions: ["base"], skills: "*", mcp: [] as string[] },
-      targets: report.homes.filter((h) => h.exists).map((h) => ({ agent: h.agent, home: tildify(h.homeAbs) })),
-    };
+    const suggested = suggestManifest(report);
     console.log(`\n${bold("Suggested .awh.jsonc")} (save as ./.awh.jsonc or ~/.awh.jsonc):`);
     console.log(JSON.stringify(suggested, null, 2));
+    if (suggested.targets.some((t) => t.instructions.length > 0)) {
+      // awh installs FROM the content repo INTO the home, so the files listed
+      // above are what to adopt, not sources awh can already read.
+      console.log(
+        dim(
+          "\nEach target lists the instruction files already in that agent's home.\n" +
+            "Move them into your content repo beside this manifest (keeping these\n" +
+            "names), or change the entries to paths — awh installs from your content\n" +
+            "repo into the agent home, not the other way round.",
+        ),
+      );
+    }
   }
   return 0;
 }

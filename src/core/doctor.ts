@@ -4,7 +4,7 @@ import path from "node:path";
 import type { AgentId, Manifest } from "../config/schema";
 import { resolveTargets } from "../config/schema";
 import { allAdapters, type Adapter } from "../adapters/index";
-import { absPath } from "../util/paths";
+import { absPath, tildify } from "../util/paths";
 import { isOurs } from "./link";
 import { loadLedger, type Ledger } from "./state";
 import { buildPlan, type McpOp, type PlanOp } from "./plan";
@@ -300,4 +300,59 @@ function isSymlink(p: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A starter `.awh.jsonc` for a machine that has none, derived from what is
+ * actually deployed.
+ *
+ * `defaults.instructions` is empty and each target lists the instruction files
+ * found in that agent's own home instead, so the suggestion never claims a
+ * fragment that does not exist. An agent home with no instruction files gets
+ * an empty array. The result is always a manifest that loads: when an agent
+ * has several homes, each target is given a distinct `name`, since launch
+ * names must be unique.
+ */
+export interface SuggestedTarget {
+  agent: AgentId;
+  home: string;
+  name?: string;
+  instructions: string[];
+}
+
+export interface SuggestedManifest {
+  defaults: { strategy: "symlink"; instructions: string[]; skills: "*"; mcp: string[] };
+  targets: SuggestedTarget[];
+}
+
+/** Derive a launch name from a home directory (`~/.codex-backup` -> `codex-backup`). */
+function launchNameFor(homeAbs: string, agent: AgentId): string {
+  const base = path
+    .basename(homeAbs)
+    .replace(/^\./, "")
+    .replace(/[^A-Za-z0-9_.-]/g, "_")
+    .replace(/^[^A-Za-z0-9]+/, "");
+  return base || agent;
+}
+
+export function suggestManifest(report: DoctorReport): SuggestedManifest {
+  const homes = report.homes.filter((h) => h.exists);
+
+  const homesPerAgent = new Map<AgentId, number>();
+  for (const h of homes) homesPerAgent.set(h.agent, (homesPerAgent.get(h.agent) ?? 0) + 1);
+
+  const used = new Set<string>();
+  const targets = homes.map((h): SuggestedTarget => {
+    const instructions = h.instructions.filter((i) => i.present).map((i) => i.name);
+    // One home for this agent: the agent id already names it unambiguously.
+    if ((homesPerAgent.get(h.agent) ?? 0) < 2) {
+      return { agent: h.agent, home: tildify(h.homeAbs), instructions };
+    }
+    let name = launchNameFor(h.homeAbs, h.agent);
+    for (let n = 2; used.has(name); n++) name = `${launchNameFor(h.homeAbs, h.agent)}_${n}`;
+    used.add(name);
+    return { agent: h.agent, home: tildify(h.homeAbs), name, instructions };
+  });
+
+  return { defaults: { strategy: "symlink", instructions: [], skills: "*", mcp: [] }, targets };
 }

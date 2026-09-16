@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-17
+
+### Changed
+- `doctor`'s suggested starter manifest now describes what is actually on the
+  machine instead of guessing. `defaults.instructions` is empty, and each
+  target carries its own `instructions` listing the instruction files found in
+  that agent's home (`["CLAUDE.md"]`, `["AGENTS.md"]`, every
+  `steering/*.md` for Kiro) — or `[]` when that home has none. A short note
+  explains that those files must be moved into the content repo, since awh
+  installs from the content repo into the home and not the other way round.
+- The suggestion is now always loadable: when one agent has several homes
+  (e.g. `~/.codex` and `~/.codex-backup`) each target is given a distinct
+  `name`. Previously the suggested manifest was rejected on load in that case,
+  because launch names must be unique.
+
 ## [0.3.1] - 2026-09-17
 
 ### Changed
@@ -82,7 +97,8 @@ Initial release.
 - Multi-fragment instruction composition, generated only by `install`/`sync`
   and reported as stale by read-only commands.
 
-[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.1.0...v0.2.0

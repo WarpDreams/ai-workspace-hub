@@ -132,6 +132,41 @@ describe("read-only commands", () => {
     assert.match(r.stdout, /Suggested \.awh\.jsonc/);
   });
 
+  test("the suggested starter manifest is valid and describes the machine", () => {
+    // What doctor prints, a new user saves verbatim — so run it back through
+    // the CLI and require that it loads.
+    write(path.join(sb.home, ".claude", "CLAUDE.md"), "# claude\n");
+    write(path.join(sb.home, ".codex", "AGENTS.md"), "# codex\n");
+    write(path.join(sb.home, ".codex-backup", "AGENTS.md"), "# backup\n");
+
+    const r = awh(["doctor"]);
+    assert.equal(r.code, 0, r.all);
+
+    const start = r.stdout.indexOf("{", r.stdout.indexOf("Suggested .awh.jsonc"));
+    const json = r.stdout.slice(start, r.stdout.lastIndexOf("}") + 1);
+    const suggested = JSON.parse(json);
+
+    assert.deepEqual(suggested.defaults.instructions, []);
+    const byAgent = (a: string) => suggested.targets.filter((t: any) => t.agent === a);
+    assert.deepEqual(byAgent("claude")[0].instructions, ["CLAUDE.md"]);
+    assert.equal(byAgent("codex").length, 2, "both codex homes are discovered");
+    assert.equal(new Set(byAgent("codex").map((t: any) => t.name)).size, 2, "distinct launch names");
+
+    // The listed files live in the agent homes, not in the content repo, so
+    // doctor must say how to adopt them.
+    assert.match(r.stdout, /Move them into your content repo beside this manifest/);
+
+    // Save it exactly as a user would. Once the named fragments exist in the
+    // content repo beside the manifest, it must work unedited.
+    const saved = path.join(sb.content, ".awh.jsonc");
+    write(saved, json);
+    write(path.join(sb.content, "CLAUDE.md"), "# adopted\n");
+    write(path.join(sb.content, "AGENTS.md"), "# adopted\n");
+    const status = awh(["status", "-m", saved, "--json"]);
+    assert.equal(status.code, 0, `the suggested manifest must load:\n${status.all}`);
+    JSON.parse(status.stdout);
+  });
+
   test("doctor --json emits JSON", () => {
     seedContent();
     const r = awh(["doctor", "-m", sb.manifest, "--json"]);
