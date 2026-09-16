@@ -136,6 +136,13 @@ is found from anywhere:
 ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc
 ```
 
+> **Save the manifest in your canon, not directly in `~`.** A real
+> `~/.awh.jsonc` makes the default `"content_search_paths": ["."]` resolve to
+> your whole home directory, and the scan would then walk `~/Library`, any
+> cloud-storage mount and every project you own. `awh` refuses this outright
+> with instructions, rather than appearing to hang — but the symlink above is
+> the setup to use.
+
 Relative paths inside a manifest resolve against the directory of the **real**
 file, not the symlink — so `"."` means the canon, and everything can sit
 beside it.
@@ -173,6 +180,10 @@ skill's reference docs) is never treated as an instruction fragment.
 If the same name is found more than once, **the later occurrence wins** —
 later search paths override earlier ones, so a personal canon listed after a
 shared one can shadow it. `doctor` prints every shadowed item.
+
+A canon is small, so the scan gives up after 5000 directories rather than
+walking something it should not. If yours genuinely is larger, raise the
+limit with `AWH_MAX_SCAN_DIRS`.
 
 ## Commands
 

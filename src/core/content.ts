@@ -50,6 +50,24 @@ export interface ContentIndex {
 
 const SKIP_DIRS = new Set([".git", "node_modules"]);
 
+/**
+ * Safety valve for a misconfigured canon root.
+ *
+ * A canon holds instruction fragments, skill directories and MCP specs — tens
+ * of directories, not thousands. If the scan blows past this it is walking
+ * something it should not (a home directory, a cloud-storage mount, a whole
+ * source tree), and failing with a message beats spinning at 100% CPU with no
+ * output. Raise it with $AWH_MAX_SCAN_DIRS if a canon really is this large.
+ */
+const DEFAULT_MAX_SCAN_DIRS = 5000;
+
+function maxScanDirs(): number {
+  const raw = process.env.AWH_MAX_SCAN_DIRS?.trim();
+  if (!raw) return DEFAULT_MAX_SCAN_DIRS;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_SCAN_DIRS;
+}
+
 let config: { base: string; searchPaths: string[] } | undefined;
 let index: ContentIndex | undefined;
 
@@ -78,6 +96,9 @@ function scan(base: string, searchPaths: string[]): ContentIndex {
     map.set(item.name, item);
   };
 
+  const limit = maxScanDirs();
+  let scanned = 0;
+
   const walk = (dir: string, searchPath: string, inInstructions: boolean, inMcp: boolean): void => {
     let real: string;
     try {
@@ -87,6 +108,15 @@ function scan(base: string, searchPaths: string[]): ContentIndex {
     }
     if (visited.has(real)) return;
     visited.add(real);
+
+    if (++scanned > limit) {
+      throw new Error(
+        `Canon scan gave up after ${limit} directories under ${searchPath} (reached ${dir}).\n\n` +
+          `A canon holds instruction fragments, skill directories and MCP specs; it should be\n` +
+          `nowhere near this large. Narrow "content_search_paths" in your manifest to the\n` +
+          `directories that actually hold them, or set AWH_MAX_SCAN_DIRS to raise this limit.`,
+      );
+    }
 
     let entries: fs.Dirent[];
     try {

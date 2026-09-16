@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-17
+
+### Fixed
+- `awh doctor` (and every other command) could appear to hang forever when the
+  manifest was a real file in `$HOME`. `content_search_paths` defaults to
+  `["."]`, resolved against the real manifest file's directory, so that made
+  the canon the whole home directory — and the scan then walked `~/Library`,
+  cloud-storage mounts such as `~/Google Drive`, and every project on the
+  machine, at 100% CPU with no output. A canon root that is the home directory
+  or the filesystem root is now refused at load time with a message showing
+  how to move the manifest into a canon and symlink it.
+- Any other runaway scan now gives up after 5000 directories, naming the
+  search path and the directory it reached, instead of spinning. Raise the
+  limit with `AWH_MAX_SCAN_DIRS` if a canon really is that large.
+
+### Changed
+- `doctor`'s suggested manifest no longer says "save as ./.awh.jsonc or
+  ~/.awh.jsonc" — that was the advice that led into the trap above. It now
+  says to save it in the canon and symlink it, and shows the commands.
+
 ## [0.3.1] - 2026-09-17
 
 ### Changed
@@ -105,7 +125,8 @@ Initial release.
 - Multi-fragment instruction composition, generated only by `install`/`sync`
   and reported as stale by read-only commands.
 
-[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.1.0...v0.2.0

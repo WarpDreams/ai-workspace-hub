@@ -333,8 +333,18 @@ function cmdDoctor(flags: Flags): number {
     if (problems > 0) console.log(`  ${yellow("run `status` / `sync` to reconcile, or fix the manifest")}`);
   } else {
     const suggested = suggestManifest(report);
-    console.log(`\n${bold("Suggested .awh.jsonc")} (save as ./.awh.jsonc or ~/.awh.jsonc):`);
+    console.log(`\n${bold("Suggested .awh.jsonc")} (save it in your canon directory):`);
     console.log(JSON.stringify(suggested, null, 2));
+    // Saving this straight into $HOME makes the canon $HOME, and the scan then
+    // walks Library/, cloud mounts and every project on the machine.
+    console.log(
+      dim(
+        "\nSave it in your canon — the one directory holding your instructions,\n" +
+          "skills and MCP specs — and symlink it, rather than writing it to ~ directly:\n" +
+          "    mkdir -p ~/ai-canon && $EDITOR ~/ai-canon/.awh.jsonc\n" +
+          "    ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc",
+      ),
+    );
     if (suggested.targets.some((t) => t.instructions.length > 0)) {
       // awh installs FROM the canon INTO the home, so the files listed above
       // are what to adopt, not sources awh can already read.

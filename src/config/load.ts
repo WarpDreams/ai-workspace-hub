@@ -66,6 +66,39 @@ export function searchPathsFor(manifestPath: string, manifest: Manifest): { base
   return { base, searchPaths: manifest.content_search_paths.map((p) => absPathFrom(base, p)) };
 }
 
+/**
+ * Refuse a canon root that would drag in an entire home directory.
+ *
+ * `content_search_paths` defaults to `["."]`, resolved against the directory
+ * of the REAL manifest file — so a manifest saved straight into `$HOME` makes
+ * the canon `$HOME`. The scan then walks `Library/`, cloud-storage mounts and
+ * every project on the machine, which presents as a hang rather than an
+ * error. Catch it at load time with an actionable message instead.
+ */
+function assertCanonRootsAreSane(manifestPath: string, searchPaths: string[]): void {
+  const home = path.resolve(os.homedir());
+  const fsRoot = path.parse(home).root;
+
+  for (const p of searchPaths) {
+    const abs = path.resolve(p);
+    if (abs !== home && abs !== fsRoot) continue;
+    const what = abs === fsRoot ? "the filesystem root" : "your home directory";
+    throw new ManifestError(
+      `Canon root is ${what} (${abs}).\n\n` +
+        `Scanning it would walk everything beneath it — caches, cloud-storage\n` +
+        `mounts, every project on the machine — and look like a hang.\n\n` +
+        `This usually means ${manifestPath} is a real file in ${home}, so the\n` +
+        `default "content_search_paths": ["."] resolves to ${home}. Keep the\n` +
+        `manifest in your canon and symlink it instead:\n\n` +
+        `    mkdir -p ~/ai-canon\n` +
+        `    mv ${manifestPath} ~/ai-canon/.awh.jsonc\n` +
+        `    ln -s ~/ai-canon/.awh.jsonc ${manifestPath}\n\n` +
+        `Or set "content_search_paths" explicitly to the directories that hold\n` +
+        `your instructions, skills and MCP specs.`,
+    );
+  }
+}
+
 export function loadManifest(explicit?: string): LoadedManifest {
   const file = findManifest(explicit);
   if (!file) {
@@ -100,6 +133,7 @@ export function loadManifest(explicit?: string): LoadedManifest {
   }
 
   const { base, searchPaths } = searchPathsFor(file, result.data);
+  assertCanonRootsAreSane(file, searchPaths);
   configureContent(base, searchPaths);
   return { path: file, manifest: result.data, base, searchPaths };
 }
