@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # awh manages symlinks in agent home directories, so both supported
+    # platforms are exercised (package.json restricts os to darwin/linux).
+    name: test (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: ["18", "20", "22", "24"]
+        include:
+          # One macOS run: symlink and realpath behaviour differs there
+          # (/var -> /private/var), which the sandboxed tests depend on.
+          - os: macos-latest
+            node: "22"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  package:
+    # Validates the artifact that actually ships: pack it, install it globally
+    # from the tarball and drive the installed binary.
+    name: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: npm pack
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          ls -l "$RUNNER_TEMP"/*.tgz
+      - name: Fail if the tarball ships source or a manifest
+        run: |
+          tar -tzf "$RUNNER_TEMP"/*.tgz | tee "$RUNNER_TEMP/contents.txt"
+          ! grep -qE 'package/(src|test|node_modules)/' "$RUNNER_TEMP/contents.txt"
+          ! grep -q 'package/.awh.jsonc' "$RUNNER_TEMP/contents.txt"
+          grep -q 'package/dist/cli.cjs' "$RUNNER_TEMP/contents.txt"
+      - name: Install globally from the tarball and run it
+        run: |
+          npm install -g --prefix "$RUNNER_TEMP/pfx" "$RUNNER_TEMP"/*.tgz
+          export PATH="$RUNNER_TEMP/pfx/bin:$PATH"
+          awh --version
+          awh --help
+          awh doctor
+          awh doctor --json > /dev/null
+      - name: Version must match the tag on a release build
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          pkg="$(node -p 'require("./package.json").version')"
+          tag="${GITHUB_REF_NAME#v}"
+          test "$pkg" = "$tag" || { echo "package.json $pkg != tag $tag"; exit 1; }

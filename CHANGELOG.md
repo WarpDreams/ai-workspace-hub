@@ -22,6 +22,18 @@ All notable changes to this project are documented here. The format follows
   `ai-workspace-hub`; install with `npm install -g ai-workspace-hub`.
 - Repository moved to the `WarpDreams` organisation; package `homepage`,
   `bugs` and `repository` URLs updated accordingly.
+- The README no longer points at a specific personal content repo; the
+  content-repo layout is described in the README itself.
+
+### Development
+- Test suite (`npm test`, `node:test` via tsx) covering manifest validation,
+  content discovery and shadowing, instruction composition and staleness,
+  plan states, the install/uninstall/sync paths that touch disk, MCP spec
+  matching and selector resolution, and the bundled CLI end to end. Every
+  test runs against a throwaway `$HOME`/`$XDG_STATE_HOME`.
+- GitHub Actions CI: typecheck and tests on Node 18/20/22/24 and macOS, plus
+  a job that packs the tarball, installs it globally and runs the binary.
+- `prepublishOnly` now runs the test suite as well as typecheck and build.
 
 ## [0.2.0] - 2026-09-14
 
