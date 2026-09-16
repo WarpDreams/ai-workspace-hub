@@ -5,16 +5,20 @@
 // instructions, skills and MCP specs — not in the awh tool directory. Copy one
 // of these examples there as `.awh.jsonc`, then point awh at it:
 //
-//     ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc
+//     ln -s ~/awh_canon/.awh.jsonc ~/.awh.jsonc
 //     awh doctor && awh install
 // ---------------------------------------------------------------------------
 {
-  // Optional. Directories scanned recursively for content — absolute,
-  // ~-prefixed, or relative to THIS file's directory. Default ["."].
+  // Canon roots: directories scanned recursively — absolute, ~-prefixed, or
+  // relative to THIS file's directory. There is NO default; omit this key (or
+  // leave it empty) and awh scans nothing and manages no discovered content.
+  // ~/awh_canon is only an example — create it, or point this at wherever you
+  // keep the material. A root that cannot be read is skipped with a warning.
   // Recognised by shape: a dir with SKILL.md is a skill; .md files under a
   // dir named `instructions` are fragments; .json(c) under a dir named `mcp`
   // are MCP specs. On name clashes the LATER path wins (doctor warns).
-  "content_search_paths": ["."],
+  // (The former name `content_search_paths` still works, but is deprecated.)
+  "canon_search_paths": ["~/awh_canon"],
 
   // Optional. Colourise `doctor` output (default false). Ignored when stdout
   // is not a terminal or $NO_COLOR is set.

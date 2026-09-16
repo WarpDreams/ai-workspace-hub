@@ -38,6 +38,12 @@ export interface Shadowed {
   winner: ContentItem;
 }
 
+/** A canon root that could not be read, and why. */
+export interface UnreadableRoot {
+  path: string;
+  reason: string;
+}
+
 export interface ContentIndex {
   /** Directory of the (real) manifest file; relative paths resolve here. */
   base: string;
@@ -46,6 +52,8 @@ export interface ContentIndex {
   skills: Map<string, ContentItem>;
   mcp: Map<string, ContentItem>;
   shadowed: Shadowed[];
+  /** Canon roots skipped because they could not be read. */
+  unreadable: UnreadableRoot[];
 }
 
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -56,10 +64,35 @@ let index: ContentIndex | undefined;
 export function configureContent(base: string, searchPaths: string[]): void {
   config = { base, searchPaths };
   index = undefined;
+  warnedNoCanon = false;
 }
 
 export function contentConfigured(): boolean {
   return config !== undefined;
+}
+
+/**
+ * True when the manifest declares at least one canon root. There is no
+ * default, so a manifest without them manages no discovered content and every
+ * discovery-driven selector resolves to nothing.
+ */
+export function canonConfigured(): boolean {
+  return (config?.searchPaths.length ?? 0) > 0;
+}
+
+/** Warn once per process that a selector needed a canon and there is none. */
+let warnedNoCanon = false;
+function warnNoCanon(what: string, names: string[]): void {
+  if (names.length === 0) return;
+  if (!warnedNoCanon) {
+    console.warn(
+      `warning: no "canon_search_paths" in the manifest, so there is nothing to search — ` +
+        `skipping ${what} ${names.join(", ")}.`,
+    );
+    warnedNoCanon = true;
+  } else {
+    console.warn(`warning: skipping ${what} ${names.join(", ")} (no canon configured).`);
+  }
 }
 
 export function contentIndex(): ContentIndex {
@@ -68,8 +101,35 @@ export function contentIndex(): ContentIndex {
   return index;
 }
 
+/**
+ * Why a canon root cannot be scanned, or undefined when it is fine. Covers the
+ * whole range — missing, not a directory, unreadable, a dangling symlink —
+ * because any of them should warn and be skipped rather than abort the run.
+ */
+function unreadableReason(p: string): string | undefined {
+  let st: fs.Stats;
+  try {
+    st = fs.statSync(p);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return "no such directory";
+    if (code === "EACCES" || code === "EPERM") return "permission denied";
+    if (code === "ELOOP") return "symlink loop";
+    if (code === "ENOTDIR") return "a path component is not a directory";
+    return (e as Error).message;
+  }
+  if (!st.isDirectory()) return "not a directory";
+  try {
+    fs.readdirSync(p);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    return code === "EACCES" || code === "EPERM" ? "permission denied" : (e as Error).message;
+  }
+  return undefined;
+}
+
 function scan(base: string, searchPaths: string[]): ContentIndex {
-  const idx: ContentIndex = { base, searchPaths, instructions: new Map(), skills: new Map(), mcp: new Map(), shadowed: [] };
+  const idx: ContentIndex = { base, searchPaths, instructions: new Map(), skills: new Map(), mcp: new Map(), shadowed: [], unreadable: [] };
   const visited = new Set<string>();
 
   const put = (kind: Shadowed["kind"], map: Map<string, ContentItem>, item: ContentItem) => {
@@ -126,7 +186,13 @@ function scan(base: string, searchPaths: string[]): ContentIndex {
   };
 
   for (const sp of searchPaths) {
-    if (!fs.existsSync(sp)) continue;
+    const problem = unreadableReason(sp);
+    if (problem) {
+      // One bad root must not take the others down with it.
+      idx.unreadable.push({ path: sp, reason: problem });
+      console.warn(`warning: skipping canon search path ${sp} — ${problem}`);
+      continue;
+    }
     walk(sp, sp, path.basename(sp) === "instructions", path.basename(sp) === "mcp");
   }
   return idx;
@@ -171,9 +237,21 @@ export function resolveFragment(entry: string): ResolvedFragment {
   return { name: entry, file: item ? item.path : path.join(idx.base, "instructions", `${entry}.md`) };
 }
 
-/** Validate that requested instruction fragments exist. */
+/**
+ * Validate that requested instruction fragments exist.
+ *
+ * With no canon configured there is nothing to look names up in, so bare names
+ * are skipped with a warning. Explicit paths still resolve — they never needed
+ * discovery.
+ */
 export function resolveInstructionSelection(entries: string[]): ResolvedFragment[] {
-  const out = entries.map(resolveFragment);
+  let selected = entries;
+  if (!canonConfigured()) {
+    const byName = entries.filter((e) => !looksLikePath(e));
+    warnNoCanon("instruction fragment(s)", byName);
+    selected = entries.filter(looksLikePath);
+  }
+  const out = selected.map(resolveFragment);
   const missing = out.filter((f) => !fs.existsSync(f.file));
   if (missing.length > 0) {
     throw new Error(
@@ -206,10 +284,20 @@ export function resolveSkill(entry: string): ResolvedSkill {
   return { name: entry, dir: item ? item.path : path.join(idx.base, "skills", entry) };
 }
 
-/** Resolve a skill selector ("*" | names/paths) against what's on disk. */
+/**
+ * Resolve a skill selector ("*" | names/paths) against what's on disk.
+ *
+ * With no canon configured, "*" selects nothing and bare names are skipped
+ * with a warning; explicit paths still resolve.
+ */
 export function resolveSkillSelection(sel: SkillSelector): ResolvedSkill[] {
-  if (sel === "*") return availableSkills().map(resolveSkill);
-  const out = sel.map(resolveSkill);
+  if (sel === "*") return canonConfigured() ? availableSkills().map(resolveSkill) : [];
+  let selected = sel;
+  if (!canonConfigured()) {
+    warnNoCanon("skill(s)", sel.filter((e) => !looksLikePath(e)));
+    selected = sel.filter(looksLikePath);
+  }
+  const out = selected.map(resolveSkill);
   const missing = out.filter((s) => !fs.existsSync(path.join(s.dir, "SKILL.md")));
   if (missing.length > 0) {
     throw new Error(

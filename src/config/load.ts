@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
-import { ManifestSchema, type Manifest } from "./schema";
+import { ManifestSchema, canonSearchPaths, usesDeprecatedCanonKey, type Manifest } from "./schema";
 import { configureContent } from "../core/content";
 import { absPathFrom } from "../util/paths";
 
@@ -51,9 +51,11 @@ export interface LoadedManifest {
 }
 
 /**
- * Resolve content search paths. Relative paths (and the default ".") are
- * taken from the directory of the REAL manifest file, so ~/.awh.jsonc may be a
- * symlink into the canon and "." means the canon.
+ * Resolve the canon roots. Relative entries are taken from the directory of
+ * the REAL manifest file, so ~/.awh.jsonc may be a symlink into the canon.
+ *
+ * There is no default: a manifest that declares no canon roots gets none, and
+ * discovery is skipped rather than falling back to the manifest's directory.
  */
 export function searchPathsFor(manifestPath: string, manifest: Manifest): { base: string; searchPaths: string[] } {
   let real = manifestPath;
@@ -63,7 +65,7 @@ export function searchPathsFor(manifestPath: string, manifest: Manifest): { base
     // keep the given path
   }
   const base = path.dirname(real);
-  return { base, searchPaths: manifest.content_search_paths.map((p) => absPathFrom(base, p)) };
+  return { base, searchPaths: canonSearchPaths(manifest).map((p) => absPathFrom(base, p)) };
 }
 
 export function loadManifest(explicit?: string): LoadedManifest {
@@ -97,6 +99,14 @@ export function loadManifest(explicit?: string): LoadedManifest {
       .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
     throw new ManifestError(`Invalid manifest ${file}:\n${issues}`);
+  }
+
+  if (usesDeprecatedCanonKey(result.data)) {
+    const also = result.data.canon_search_paths !== undefined ? " Ignoring it in favour of `canon_search_paths`." : "";
+    console.warn(
+      `warning: ${file} uses "content_search_paths", which has been renamed to ` +
+        `"canon_search_paths".${also} The old name still works but will be removed.`,
+    );
   }
 
   const { base, searchPaths } = searchPathsFor(file, result.data);

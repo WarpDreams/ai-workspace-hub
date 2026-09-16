@@ -19,7 +19,10 @@ describe("ManifestSchema", () => {
     const r = parse(base);
     assert.ok(r.success);
     const m = r.data;
-    assert.deepEqual(m.content_search_paths, ["."]);
+    // Deliberately NO default: guessing the manifest's own directory turned a
+    // manifest saved in $HOME into a scan of the whole home directory.
+    assert.equal(m.canon_search_paths, undefined);
+    assert.equal(m.content_search_paths, undefined);
     assert.equal(m.color_output, false);
     assert.equal(m.defaults.strategy, "symlink");
     assert.equal(m.defaults.skills, "*");

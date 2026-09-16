@@ -26,6 +26,7 @@ afterEach(() => sb.dispose());
 /** Write a manifest (Claude only, no MCP) and return a fresh plan for it. */
 function planFor(opts: { instructions?: string[]; skills?: unknown; strategy?: string } = {}) {
   writeManifest(sb, {
+    canon_search_paths: [sb.content],
     defaults: {
       instructions: opts.instructions ?? ["base"],
       skills: opts.skills ?? "*",

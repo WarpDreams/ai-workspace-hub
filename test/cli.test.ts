@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { exists, homeFor, makeSandbox, write, writeInstruction, writeManifest, writeSkill, type Sandbox } from "./helpers";
 
 /**
@@ -41,6 +42,7 @@ function seedContent() {
   writeInstruction(sb, "base", "# base\n");
   writeSkill(sb, "gmail");
   writeManifest(sb, {
+    canon_search_paths: [sb.content],
     defaults: { instructions: ["base"], skills: "*" },
     targets: [{ agent: "claude", home: homeFor(sb, "claude") }],
   });
@@ -144,8 +146,17 @@ describe("read-only commands", () => {
 
     const start = r.stdout.indexOf("{", r.stdout.indexOf("Suggested .awh.jsonc"));
     const json = r.stdout.slice(start, r.stdout.lastIndexOf("}") + 1);
-    const suggested = JSON.parse(json);
 
+    // The suggestion is JSONC — it carries comments explaining the placeholder
+    // canon root — so it must parse as JSONC, not plain JSON.
+    assert.match(json, /\/\/ Canon roots:/, "comments explain the placeholder");
+    assert.equal(JSON.parse.bind(null, json) instanceof Function, true);
+    const errors: ParseError[] = [];
+    const suggested = parseJsonc(json, errors, { allowTrailingComma: true });
+    assert.deepEqual(errors, [], "suggestion must be valid JSONC");
+
+    assert.deepEqual(suggested.canon_search_paths, ["~/awh_canon"]);
+    assert.match(json, /ONLY AN EXAMPLE/, "must say the canon path is a placeholder");
     assert.deepEqual(suggested.defaults.instructions, []);
     assert.equal(suggested.color_output, true);
     const byAgent = (a: string) => suggested.targets.filter((t: any) => t.agent === a);
@@ -155,7 +166,7 @@ describe("read-only commands", () => {
 
     // The listed files live in the agent homes, not in the content repo, so
     // doctor must say how to adopt them.
-    assert.match(r.stdout, /Move them into your canon beside this manifest/);
+    assert.match(r.stdout, /Move them into your canon \(keeping these names\)/);
 
     // Save it exactly as a user would. Once the named fragments exist in the
     // content repo beside the manifest, it must work unedited.
@@ -250,6 +261,7 @@ describe("launch", () => {
     writeInstruction(sb, "base");
     const alt = path.join(sb.home, ".claude-work");
     writeManifest(sb, {
+      canon_search_paths: [sb.content],
       defaults: { instructions: ["base"], skills: [] },
       targets: [
         { agent: "claude", home: alt, name: "work" },
@@ -277,6 +289,7 @@ describe("launch", () => {
   test("a pre-step commandline runs before the agent", () => {
     writeInstruction(sb, "base");
     writeManifest(sb, {
+      canon_search_paths: [sb.content],
       defaults: { instructions: ["base"], skills: [] },
       targets: [{ agent: "codex", home: homeFor(sb, "codex"), commandline: ["echo pre-step", "codex -p bedrock"] }],
     });
