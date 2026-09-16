@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
 ### Added
 - `color_output` (boolean, default false) in the manifest: colourises `doctor`
   output by severity. Suppressed when stdout is not a TTY, when `$NO_COLOR` is
@@ -14,6 +16,12 @@ All notable changes to this project are documented here. The format follows
   `{ "<name>": { ...spec } }` objects, mixed with discovered names, paths and
   `"*"`. Inline wins over a discovered spec of the same name; `doctor` lists
   inline declarations and warns about such shadowing.
+
+### Changed
+- First release published to the public npm registry as
+  `ai-workspace-hub`; install with `npm install -g ai-workspace-hub`.
+- Repository moved to the `WarpDreams` organisation; package `homepage`,
+  `bugs` and `repository` URLs updated accordingly.
 
 ## [0.2.0] - 2026-09-14
 
@@ -49,6 +57,7 @@ Initial release.
 - Multi-fragment instruction composition, generated only by `install`/`sync`
   and reported as stale by read-only commands.
 
-[Unreleased]: https://github.com/alienbat/ai-workspace-hub/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/alienbat/ai-workspace-hub/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/alienbat/ai-workspace-hub/releases/tag/v0.1.0
+[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/WarpDreams/ai-workspace-hub/releases/tag/v0.1.0

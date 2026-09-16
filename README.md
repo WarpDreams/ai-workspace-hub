@@ -21,12 +21,15 @@ each gets.
 ## Install
 
 ```bash
-# from the git repo (not yet on the npm registry)
-npm install -g git+ssh://git@github.com/alienbat/ai-workspace-hub.git
-# or from a clone
-git clone git@github.com:alienbat/ai-workspace-hub.git && cd ai-workspace-hub && npm install -g .
+npm install -g ai-workspace-hub
 
 awh --version
+```
+
+Or run it without installing:
+
+```bash
+npx ai-workspace-hub doctor
 ```
 
 Requires Node.js >= 18 on macOS or Linux and, for MCP management and
