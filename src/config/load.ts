@@ -53,7 +53,7 @@ export interface LoadedManifest {
 /**
  * Resolve content search paths. Relative paths (and the default ".") are
  * taken from the directory of the REAL manifest file, so ~/.awh.jsonc may be a
- * symlink into a content repo and "." means that repo.
+ * symlink into the canon and "." means the canon.
  */
 export function searchPathsFor(manifestPath: string, manifest: Manifest): { base: string; searchPaths: string[] } {
   let real = manifestPath;
@@ -73,7 +73,7 @@ export function loadManifest(explicit?: string): LoadedManifest {
       `No manifest found. Looked for ${DEFAULT_MANIFEST_NAME} in the current ` +
         `directory (${process.cwd()}) and in your home directory ` +
         `(${path.join(os.homedir(), DEFAULT_MANIFEST_NAME)}), and $${MANIFEST_ENV} is not set. ` +
-        `Point ~/.awh.jsonc (or --manifest) at the .awh.jsonc in your content repo.`,
+        `Point ~/.awh.jsonc (or --manifest) at the .awh.jsonc in your canon.`,
     );
   }
 

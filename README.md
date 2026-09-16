@@ -3,23 +3,32 @@
 [![CI](https://github.com/WarpDreams/ai-workspace-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/WarpDreams/ai-workspace-hub/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ai-workspace-hub.svg)](https://www.npmjs.com/package/ai-workspace-hub)
 
-One command-line tool that installs your canonical agent **instructions**,
-**skills** and **MCP servers** into every agent CLI's home directory, in the
-format each CLI expects, and launches agents against a chosen home.
+One command-line tool that keeps a single **canon** — your instructions,
+skills and MCP servers — and installs it into every agent CLI's home
+directory, in the format each one expects.
 
-Different agent CLIs read the same logical content from different places:
+## Why
 
-| Logical content     | Claude                      | Codex                          | Kiro                       |
-| ------------------- | --------------------------- | ------------------------------ | -------------------------- |
-| Global instructions | `~/.claude/CLAUDE.md`       | `~/.codex/AGENTS.md`           | `~/.kiro/steering/*.md`    |
-| Skills              | `~/.claude/skills/<name>/`  | `~/.codex/skills/<name>/`      | `~/.kiro/skills/<name>/`   |
-| MCP servers (user)  | `~/.claude.json`            | `~/.codex/config.toml`         | `~/.kiro/settings/mcp.json`|
+Run more than one agent CLI and the same knowledge ends up copied into each
+of them, in a different shape every time:
 
-`awh` is only the tool. **Your content lives in a separate repo of your
-own**: instruction fragments, skill directories, MCP specs, and the
-per-machine manifest `.awh.jsonc` that says which agents/homes exist and what
-each gets. No particular layout is required — see
-[How content is found](#how-content-is-found).
+| Kind         | Claude                     | Codex                     | Kiro                        |
+| ------------ | -------------------------- | ------------------------- | --------------------------- |
+| Instructions | `~/.claude/CLAUDE.md`      | `~/.codex/AGENTS.md`      | `~/.kiro/steering/*.md`     |
+| Skills       | `~/.claude/skills/<name>/` | `~/.codex/skills/<name>/` | `~/.kiro/skills/<name>/`    |
+| MCP servers  | `~/.claude.json`           | `~/.codex/config.toml`    | `~/.kiro/settings/mcp.json` |
+
+One file per agent, three different formats, three places to forget. Fix a
+typo in your coding standards and you fix it three times — or, more likely,
+once, and the other two drift.
+
+`awh` inverts that. You keep **one canon in one directory**. `awh install`
+projects it into each agent home, as a symlink by default, so editing the
+canon updates every agent at once. Nothing is duplicated, nothing drifts, and
+`awh doctor` tells you when something has.
+
+The canon is yours and lives wherever you like — a plain directory is enough.
+`awh` is only the tool that projects it.
 
 ## Install
 
@@ -38,42 +47,131 @@ npx ai-workspace-hub doctor
 Requires Node.js >= 18 on macOS or Linux and, for MCP management and
 `launch`, the agent CLIs themselves (`claude`, `codex`, `kiro-cli`) on PATH.
 
-## Point it at your content
+## Set up your canon
 
-`awh` looks for the manifest in this order: `-m/--manifest <path>`,
-`$AWH_MANIFEST`, `./.awh.jsonc`, `~/.awh.jsonc`. The usual setup is a symlink:
+Make a directory anywhere and put your material in it:
 
 ```bash
-git clone <your-content-repo> ~/works/my-agent-content
-ln -s ~/works/my-agent-content/.awh.jsonc ~/.awh.jsonc
-awh doctor
+mkdir -p ~/ai-canon/instructions
 ```
 
-Starting from scratch? Run `awh doctor` with no manifest anywhere: it scans
-the agent homes on this machine and prints a starter `.awh.jsonc` you can
-save and edit.
+A worked example:
 
-Relative paths in a manifest resolve against the directory of the **real**
-manifest file, so content sits beside it in the content repo.
+```
+~/ai-canon/
+├── .awh.jsonc              ← the manifest (next section)
+├── instructions/           ← REQUIRED name: .md files here are fragments
+│   ├── base.md
+│   └── security.md
+├── skills/
+│   ├── code-review/
+│   │   └── SKILL.md        ← a directory with SKILL.md is a skill
+│   └── release-notes/
+│       └── SKILL.md
+└── mcp/                    ← REQUIRED name: .json/.jsonc here are MCP specs
+    ├── context7.jsonc
+    └── notion.jsonc
+```
 
-## How content is found
+**The layout is up to you.** `awh` scans the whole canon recursively and
+recognises things by shape, not by position. Exactly two directory *names*
+are load-bearing — `instructions` and `mcp`:
+
+| What                | Rule                                                        |
+| ------------------- | ----------------------------------------------------------- |
+| Instruction         | a `.md` file anywhere under a directory named `instructions` |
+| MCP server spec     | a `.json`/`.jsonc` anywhere under a directory named `mcp`    |
+| Skill               | **any** directory containing a `SKILL.md` — name it anything |
+
+So `skills/` above is a convention, not a requirement, and nesting is free.
+This is found exactly as well:
+
+```
+~/ai-canon/
+├── .awh.jsonc
+├── work/
+│   ├── instructions/
+│   │   └── base.md         ← fragment "base"
+│   └── my-review-helper/
+│       └── SKILL.md        ← skill "my-review-helper"
+└── personal/
+    └── mcp/
+        └── notion.jsonc    ← MCP spec "notion"
+```
+
+Names come from the file or directory: `base.md` → `base`,
+`my-review-helper/` → `my-review-helper`, `notion.jsonc` → `notion`.
+`.git`, `node_modules` and dot-directories are skipped, so a README or a
+skill's own reference docs are never mistaken for instruction fragments.
+
+Already have instructions sitting in your agent homes? Move them into
+`instructions/` — `awh doctor` lists exactly what it found and where, and its
+suggested manifest names those files for you.
+
+## Point awh at your canon
+
+The canon needs one `.awh.jsonc` manifest saying which agent homes exist on
+this machine and what each one gets. Let `awh` write the first draft:
+
+```bash
+awh doctor                      # scans the machine, prints a starter manifest
+$EDITOR ~/ai-canon/.awh.jsonc   # paste the suggestion in, then adjust
+```
+
+With no manifest anywhere, `doctor` reports every agent home it can find and
+what is already installed in each, then suggests a manifest with one target
+per home, listing the instruction files it found there.
+
+`awh` looks for the manifest in this order:
+
+1. `-m` / `--manifest <path>`
+2. `$AWH_MANIFEST`
+3. `./.awh.jsonc` in the current directory
+4. `~/.awh.jsonc`
+
+Keeping the manifest in the canon and symlinking it into your home means it
+is found from anywhere:
+
+```bash
+ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc
+```
+
+Relative paths inside a manifest resolve against the directory of the **real**
+file, not the symlink — so `"."` means the canon, and everything can sit
+beside it.
+
+Then check and apply:
+
+```bash
+awh doctor      # what is on this machine, and how it compares to the canon
+awh plan        # what install would do — touches nothing
+awh install     # do it
+```
+
+## How your canon is found
 
 The manifest's `content_search_paths` (default `["."]`, i.e. the manifest's
-own directory) are scanned recursively. Items are recognised by shape, so no
-particular layout is required:
+own directory) are the roots scanned for canon material. Several roots are
+allowed — a shared team canon plus a personal one, for instance:
 
-| Kind        | Recognised as                                         | Name                 |
-| ----------- | ----------------------------------------------------- | -------------------- |
-| skill       | any directory containing `SKILL.md` (not descended into) | directory name    |
-| instruction | any `.md` file under a directory named `instructions` | file name sans `.md` |
-| MCP spec    | any `.json`/`.jsonc` under a directory named `mcp`    | file name sans ext   |
+```jsonc
+"content_search_paths": [".", "~/team-canon"]
+```
+
+Recognition, again, is by shape:
+
+| Kind        | Recognised as                                            | Name                 |
+| ----------- | -------------------------------------------------------- | -------------------- |
+| skill       | any directory containing `SKILL.md` (not descended into)  | directory name       |
+| instruction | any `.md` file under a directory named `instructions`     | file name sans `.md` |
+| MCP spec    | any `.json`/`.jsonc` under a directory named `mcp`        | file name sans ext   |
 
 `.git`, `node_modules` and dot-directories are skipped; symlinked directories
 are followed once. Markdown outside an `instructions/` directory (a README, a
 skill's reference docs) is never treated as an instruction fragment.
 
 If the same name is found more than once, **the later occurrence wins** —
-later search paths override earlier ones, so a personal repo listed after a
+later search paths override earlier ones, so a personal canon listed after a
 shared one can shadow it. `doctor` prints every shadowed item.
 
 ## Commands
@@ -111,7 +209,7 @@ State glyphs in `status`/`plan`:
 
 ```
 ✓ linked/copied   · missing   ~ wrong-link (ours, elsewhere)
-! foreign-link (outside our content)  ✗ conflict (real file we didn't create)
+! foreign-link (outside your canon)   ✗ conflict (real file we didn't create)
 ↻ stale (composed instructions out of date — run install/sync)
 ```
 
@@ -122,9 +220,9 @@ State glyphs in `status`/`plan`:
 
 ```jsonc
 {
-  // Optional. Directories scanned for content: absolute / ~ / relative to this
-  // file. Default ["."]. Later entries override earlier ones on name clashes.
-  "content_search_paths": [".", "~/works/team-shared-content"],
+  // Optional. Canon roots to scan: absolute / ~ / relative to this file.
+  // Default ["."]. Later entries override earlier ones on name clashes.
+  "content_search_paths": [".", "~/team-canon"],
 
   // Optional. Colourise `doctor` output. Default false.
   "color_output": true,
@@ -177,12 +275,11 @@ valid and means "manage none".
 
 ## Strategies
 
-- **symlink** (default): agents read through links into your content repo.
-  Editing content updates every agent immediately (except multi-fragment
-  composites, which need `install`/`sync`). The content repo must stay at its
-  path.
+- **symlink** (default): agents read through links into your canon. Editing
+  the canon updates every agent immediately (except multi-fragment composites,
+  which need `install`/`sync`). The canon must stay at its path.
 - **copy**: independent materialized copies. Portable and self-contained; run
-  `sync` after editing content to refresh them.
+  `sync` after editing the canon to refresh them.
 
 ## MCP servers
 
@@ -217,7 +314,7 @@ An inline entry is `{ "<name>": { …spec } }` with the same fields as a spec
 file; one object may declare several servers. Inline declarations win over a
 discovered or path entry of the same name (`doctor` warns), and declaring one
 name inline twice in the same list is an error. Inline is handy for
-machine-specific or one-off servers; a spec file in the content repo is the
+machine-specific or one-off servers; a spec file in the canon is the
 form to reuse across machines.
 
 **awh never edits an agent's config file for MCP.** `install`/`sync`/

@@ -1,5 +1,5 @@
 // machine.minimal.jsonc — a single Claude + single Codex home, all defaults.
-// Put this in your content repo as .awh.jsonc, beside instructions/, skills/, mcp/.
+// Put this in your canon as .awh.jsonc, beside instructions/, skills/, mcp/.
 {
   "defaults": {
     "strategy": "symlink",
