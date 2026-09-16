@@ -321,10 +321,14 @@ export interface SuggestedTarget {
 }
 
 export interface SuggestedManifest {
+  canon_search_paths: string[];
   color_output: boolean;
   defaults: { strategy: "symlink"; instructions: string[]; skills: "*"; mcp: string[] };
   targets: SuggestedTarget[];
 }
+
+/** Placeholder canon root in the suggested manifest. Not created by awh. */
+export const EXAMPLE_CANON = "~/awh_canon";
 
 /** Derive a launch name from a home directory (`~/.codex-backup` -> `codex-backup`). */
 function launchNameFor(homeAbs: string, agent: AgentId): string {
@@ -358,5 +362,42 @@ export function suggestManifest(report: DoctorReport): SuggestedManifest {
   // Colour is off by default in the schema, but a starter manifest is for a
   // person at a terminal — and doctor suppresses it anyway for non-TTY,
   // $NO_COLOR and --json, so switching it on here cannot corrupt piped output.
-  return { color_output: true, defaults: { strategy: "symlink", instructions: [], skills: "*", mcp: [] }, targets };
+  return {
+    canon_search_paths: [EXAMPLE_CANON],
+    color_output: true,
+    defaults: { strategy: "symlink", instructions: [], skills: "*", mcp: [] },
+    targets,
+  };
+}
+
+/**
+ * Render the suggestion as JSONC. `.awh.jsonc` allows comments, and the canon
+ * root in particular needs one: it is a placeholder the user must create or
+ * repoint, and a bare path in a config file does not say so.
+ */
+export function renderSuggestedManifest(m: SuggestedManifest): string {
+  const body = (value: unknown, indent: string): string => JSON.stringify(value, null, 2).split("\n").join("\n" + indent);
+  const lines = [
+    "{",
+    "  // Canon roots: the directories holding your instruction fragments,",
+    "  // skills and MCP specs. Scanned recursively; later entries win on name",
+    "  // clashes.",
+    "  //",
+    `  // ${EXAMPLE_CANON} below is ONLY AN EXAMPLE — awh does not create it.`,
+    "  // Create it, or rename this to wherever you actually keep that material.",
+    "  // Leave the list out entirely (or empty) and awh manages no discovered",
+    "  // content: no directory is scanned and nothing is guessed.",
+    `  "canon_search_paths": ${JSON.stringify(m.canon_search_paths)},`,
+    "",
+    "  // Colourise `doctor` output. Suppressed for non-TTY, $NO_COLOR and --json.",
+    `  "color_output": ${m.color_output},`,
+    "",
+    `  "defaults": ${body(m.defaults, "  ")},`,
+    "",
+    "  // One target per agent home found on this machine. `instructions` lists",
+    "  // the files already in that home — move them into your canon to manage them.",
+    `  "targets": ${body(m.targets, "  ")}`,
+    "}",
+  ];
+  return lines.join("\n");
 }

@@ -52,13 +52,13 @@ Requires Node.js >= 18 on macOS or Linux and, for MCP management and
 Make a directory anywhere and put your material in it:
 
 ```bash
-mkdir -p ~/ai-canon/instructions
+mkdir -p ~/awh_canon/instructions
 ```
 
 A worked example:
 
 ```
-~/ai-canon/
+~/awh_canon/
 ├── .awh.jsonc              ← the manifest (next section)
 ├── instructions/           ← REQUIRED name: .md files here are fragments
 │   ├── base.md
@@ -87,7 +87,7 @@ So `skills/` above is a convention, not a requirement, and nesting is free.
 This is found exactly as well:
 
 ```
-~/ai-canon/
+~/awh_canon/
 ├── .awh.jsonc
 ├── work/
 │   ├── instructions/
@@ -115,7 +115,7 @@ this machine and what each one gets. Let `awh` write the first draft:
 
 ```bash
 awh doctor                      # scans the machine, prints a starter manifest
-$EDITOR ~/ai-canon/.awh.jsonc   # paste the suggestion in, then adjust
+$EDITOR ~/awh_canon/.awh.jsonc   # paste the suggestion in, then adjust
 ```
 
 With no manifest anywhere, `doctor` reports every agent home it can find and
@@ -133,15 +133,12 @@ Keeping the manifest in the canon and symlinking it into your home means it
 is found from anywhere:
 
 ```bash
-ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc
+ln -s ~/awh_canon/.awh.jsonc ~/.awh.jsonc
 ```
 
-> **Save the manifest in your canon, not directly in `~`.** A real
-> `~/.awh.jsonc` makes the default `"content_search_paths": ["."]` resolve to
-> your whole home directory, and the scan would then walk `~/Library`, any
-> cloud-storage mount and every project you own. `awh` refuses this outright
-> with instructions, rather than appearing to hang — but the symlink above is
-> the setup to use.
+> `canon_search_paths` has **no default**. A manifest that does not declare it
+> scans nothing at all — `awh` never guesses a directory, so it can never end
+> up walking your whole home directory.
 
 Relative paths inside a manifest resolve against the directory of the **real**
 file, not the symlink — so `"."` means the canon, and everything can sit
@@ -157,13 +154,25 @@ awh install     # do it
 
 ## How your canon is found
 
-The manifest's `content_search_paths` (default `["."]`, i.e. the manifest's
-own directory) are the roots scanned for canon material. Several roots are
-allowed — a shared team canon plus a personal one, for instance:
+The manifest's `canon_search_paths` lists the roots scanned for canon
+material. Several are allowed — a shared team canon plus a personal one, for
+instance:
 
 ```jsonc
-"content_search_paths": [".", "~/team-canon"]
+"canon_search_paths": ["~/awh_canon", "~/team-canon"]
 ```
+
+There is **no default**. Omit the key, or give an empty list, and `awh`
+manages no discovered content: nothing is scanned and nothing is guessed.
+Selector entries that are explicit paths still work, since they never needed
+discovery.
+
+A root that cannot be read — missing, not a directory, permission denied, a
+dangling symlink — is skipped with a warning, and the remaining roots are
+still scanned.
+
+> `content_search_paths` is the former name. It still works and takes effect
+> when `canon_search_paths` is absent, but it prints a deprecation warning.
 
 Recognition, again, is by shape:
 
@@ -231,9 +240,9 @@ State glyphs in `status`/`plan`:
 
 ```jsonc
 {
-  // Optional. Canon roots to scan: absolute / ~ / relative to this file.
-  // Default ["."]. Later entries override earlier ones on name clashes.
-  "content_search_paths": [".", "~/team-canon"],
+  // Canon roots to scan: absolute / ~ / relative to this file. NO default —
+  // omit it and awh scans nothing. Later entries win on name clashes.
+  "canon_search_paths": ["~/awh_canon", "~/team-canon"],
 
   // Optional. Colourise `doctor` output. Default false.
   "color_output": true,

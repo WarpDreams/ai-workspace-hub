@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { findManifest, loadManifest, ManifestError, type LoadedManifest } from "./config/load";
-import { buildDoctorReport, suggestManifest, type DoctorHome, type DoctorItem } from "./core/doctor";
+import { buildDoctorReport, renderSuggestedManifest, suggestManifest, EXAMPLE_CANON, type DoctorHome, type DoctorItem } from "./core/doctor";
 import { buildLaunch, LaunchError, quoteArg as shellQuote, resolveLaunchTarget, runLaunch } from "./core/launch";
 import { buildPlan, type Plan } from "./core/plan";
 import { applyInstall, applySync, applyUninstall, type ApplyResult } from "./core/apply";
@@ -284,7 +284,13 @@ function cmdDoctor(flags: Flags): number {
 
   if (contentConfigured()) {
     const idx = contentIndex();
-    console.log(`\n${bold("Content search paths:")} ${idx.searchPaths.map(tildify).join(", ")}`);
+    const roots = idx.searchPaths.length
+      ? idx.searchPaths.map(tildify).join(", ")
+      : dim('(none — add "canon_search_paths" to the manifest to manage content)');
+    console.log(`\n${bold("Canon search paths:")} ${roots}`);
+    for (const bad of idx.unreadable) {
+      console.log(`  ${yellow("!")} ${yellow(`${tildify(bad.path)} — ${bad.reason}; skipped`)}`);
+    }
     const list = (v: string[]) => (v.length ? v.join(", ") : dim("(none)"));
     console.log(`  instructions: ${list(availableInstructions())}`);
     console.log(`  skills:       ${list(availableSkills())}`);
@@ -333,16 +339,15 @@ function cmdDoctor(flags: Flags): number {
     if (problems > 0) console.log(`  ${yellow("run `status` / `sync` to reconcile, or fix the manifest")}`);
   } else {
     const suggested = suggestManifest(report);
-    console.log(`\n${bold("Suggested .awh.jsonc")} (save it in your canon directory):`);
-    console.log(JSON.stringify(suggested, null, 2));
-    // Saving this straight into $HOME makes the canon $HOME, and the scan then
-    // walks Library/, cloud mounts and every project on the machine.
+    console.log(`\n${bold("Suggested .awh.jsonc")}:`);
+    console.log(renderSuggestedManifest(suggested));
     console.log(
       dim(
-        "\nSave it in your canon — the one directory holding your instructions,\n" +
-          "skills and MCP specs — and symlink it, rather than writing it to ~ directly:\n" +
-          "    mkdir -p ~/ai-canon && $EDITOR ~/ai-canon/.awh.jsonc\n" +
-          "    ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc",
+        `\n${EXAMPLE_CANON} is a placeholder — create it, or point "canon_search_paths"\n` +
+          "at wherever you keep your instructions, skills and MCP specs:\n" +
+          `    mkdir -p ${EXAMPLE_CANON}/instructions\n` +
+          `    $EDITOR ${EXAMPLE_CANON}/.awh.jsonc\n` +
+          `    ln -s ${EXAMPLE_CANON}/.awh.jsonc ~/.awh.jsonc`,
       ),
     );
     if (suggested.targets.some((t) => t.instructions.length > 0)) {
@@ -351,9 +356,9 @@ function cmdDoctor(flags: Flags): number {
       console.log(
         dim(
           "\nEach target lists the instruction files already in that agent's home.\n" +
-            "Move them into your canon beside this manifest (keeping these names),\n" +
-            "or change the entries to paths — awh installs from your canon into the\n" +
-            "agent home, not the other way round.",
+            "Move them into your canon (keeping these names), or change the entries\n" +
+            "to paths — awh installs from your canon into the agent home, not the\n" +
+            "other way round.",
         ),
       );
     }

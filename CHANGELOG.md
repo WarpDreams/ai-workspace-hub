@@ -9,22 +9,33 @@ All notable changes to this project are documented here. The format follows
 ## [0.3.2] - 2026-09-17
 
 ### Fixed
-- `awh doctor` (and every other command) could appear to hang forever when the
-  manifest was a real file in `$HOME`. `content_search_paths` defaults to
-  `["."]`, resolved against the real manifest file's directory, so that made
-  the canon the whole home directory — and the scan then walked `~/Library`,
-  cloud-storage mounts such as `~/Google Drive`, and every project on the
-  machine, at 100% CPU with no output. A canon root that is the home directory
-  or the filesystem root is now refused at load time with a message showing
-  how to move the manifest into a canon and symlink it.
-- Any other runaway scan now gives up after 5000 directories, naming the
-  search path and the directory it reached, instead of spinning. Raise the
-  limit with `AWH_MAX_SCAN_DIRS` if a canon really is that large.
+- Any command could appear to hang forever when the manifest was a real file
+  in `$HOME`. `content_search_paths` defaulted to `["."]`, resolved against
+  the real manifest file's directory, which made the canon the whole home
+  directory — the scan then walked `~/Library`, cloud-storage mounts such as
+  `~/Google Drive`, and every project on the machine, at 100% CPU with no
+  output. **There is no longer any default.** A manifest that declares no
+  canon roots scans nothing; awh never guesses a directory.
+- A canon root that cannot be read — missing, not a directory, permission
+  denied, a dangling symlink — is now skipped with a warning naming the path
+  and the reason, and the remaining roots are still scanned. Previously a
+  missing root was skipped silently and other failures were invisible.
 
 ### Changed
-- `doctor`'s suggested manifest no longer says "save as ./.awh.jsonc or
-  ~/.awh.jsonc" — that was the advice that led into the trap above. It now
-  says to save it in the canon and symlink it, and shows the commands.
+- **`content_search_paths` is renamed `canon_search_paths`**, matching the
+  vocabulary used everywhere else. The old name still works and takes effect
+  when the new one is absent, but prints a deprecation warning; if both are
+  present, `canon_search_paths` wins.
+- With no canon roots, selectors that need discovery resolve to nothing
+  instead of failing: `"*"` selects nothing, and bare names are skipped with a
+  warning. Selector entries that are explicit paths still resolve, and inline
+  MCP declarations still apply — neither needs discovery.
+- `doctor`'s suggested manifest is now JSONC rather than JSON, and leads with
+  a commented `"canon_search_paths": ["~/awh_canon"]`. The comment says
+  plainly that the path is only an example to create or rename, and that
+  omitting the key means awh manages no discovered content.
+- `doctor` reports `Canon search paths` (was `Content search paths`), says so
+  when none are configured, and lists any root it skipped.
 
 ## [0.3.1] - 2026-09-17
 

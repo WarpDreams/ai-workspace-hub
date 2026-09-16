@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
-import { ManifestSchema, type Manifest } from "./schema";
+import { ManifestSchema, canonSearchPaths, usesDeprecatedCanonKey, type Manifest } from "./schema";
 import { configureContent } from "../core/content";
 import { absPathFrom } from "../util/paths";
 
@@ -51,9 +51,11 @@ export interface LoadedManifest {
 }
 
 /**
- * Resolve content search paths. Relative paths (and the default ".") are
- * taken from the directory of the REAL manifest file, so ~/.awh.jsonc may be a
- * symlink into the canon and "." means the canon.
+ * Resolve the canon roots. Relative entries are taken from the directory of
+ * the REAL manifest file, so ~/.awh.jsonc may be a symlink into the canon.
+ *
+ * There is no default: a manifest that declares no canon roots gets none, and
+ * discovery is skipped rather than falling back to the manifest's directory.
  */
 export function searchPathsFor(manifestPath: string, manifest: Manifest): { base: string; searchPaths: string[] } {
   let real = manifestPath;
@@ -63,40 +65,7 @@ export function searchPathsFor(manifestPath: string, manifest: Manifest): { base
     // keep the given path
   }
   const base = path.dirname(real);
-  return { base, searchPaths: manifest.content_search_paths.map((p) => absPathFrom(base, p)) };
-}
-
-/**
- * Refuse a canon root that would drag in an entire home directory.
- *
- * `content_search_paths` defaults to `["."]`, resolved against the directory
- * of the REAL manifest file — so a manifest saved straight into `$HOME` makes
- * the canon `$HOME`. The scan then walks `Library/`, cloud-storage mounts and
- * every project on the machine, which presents as a hang rather than an
- * error. Catch it at load time with an actionable message instead.
- */
-function assertCanonRootsAreSane(manifestPath: string, searchPaths: string[]): void {
-  const home = path.resolve(os.homedir());
-  const fsRoot = path.parse(home).root;
-
-  for (const p of searchPaths) {
-    const abs = path.resolve(p);
-    if (abs !== home && abs !== fsRoot) continue;
-    const what = abs === fsRoot ? "the filesystem root" : "your home directory";
-    throw new ManifestError(
-      `Canon root is ${what} (${abs}).\n\n` +
-        `Scanning it would walk everything beneath it — caches, cloud-storage\n` +
-        `mounts, every project on the machine — and look like a hang.\n\n` +
-        `This usually means ${manifestPath} is a real file in ${home}, so the\n` +
-        `default "content_search_paths": ["."] resolves to ${home}. Keep the\n` +
-        `manifest in your canon and symlink it instead:\n\n` +
-        `    mkdir -p ~/ai-canon\n` +
-        `    mv ${manifestPath} ~/ai-canon/.awh.jsonc\n` +
-        `    ln -s ~/ai-canon/.awh.jsonc ${manifestPath}\n\n` +
-        `Or set "content_search_paths" explicitly to the directories that hold\n` +
-        `your instructions, skills and MCP specs.`,
-    );
-  }
+  return { base, searchPaths: canonSearchPaths(manifest).map((p) => absPathFrom(base, p)) };
 }
 
 export function loadManifest(explicit?: string): LoadedManifest {
@@ -132,8 +101,15 @@ export function loadManifest(explicit?: string): LoadedManifest {
     throw new ManifestError(`Invalid manifest ${file}:\n${issues}`);
   }
 
+  if (usesDeprecatedCanonKey(result.data)) {
+    const also = result.data.canon_search_paths !== undefined ? " Ignoring it in favour of `canon_search_paths`." : "";
+    console.warn(
+      `warning: ${file} uses "content_search_paths", which has been renamed to ` +
+        `"canon_search_paths".${also} The old name still works but will be removed.`,
+    );
+  }
+
   const { base, searchPaths } = searchPathsFor(file, result.data);
-  assertCanonRootsAreSane(file, searchPaths);
   configureContent(base, searchPaths);
   return { path: file, manifest: result.data, base, searchPaths };
 }

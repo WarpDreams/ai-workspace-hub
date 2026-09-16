@@ -18,6 +18,7 @@ afterEach(() => sb.dispose());
 /** Manifest with one Claude target, plus whatever overrides the test needs. */
 function claudeManifest(over: Record<string, unknown> = {}, defaults: Record<string, unknown> = {}) {
   writeManifest(sb, {
+    canon_search_paths: [sb.content],
     defaults: { instructions: ["base"], skills: "*", ...defaults },
     targets: [{ agent: "claude", home: homeFor(sb, "claude"), ...over }],
   });
@@ -51,6 +52,7 @@ describe("destination mapping", () => {
     writeInstruction(sb, "base");
     writeInstruction(sb, "extra");
     writeManifest(sb, {
+      canon_search_paths: [sb.content],
       defaults: { instructions: ["base", "extra"], skills: [] },
       targets: [{ agent: "kiro", home: homeFor(sb, "kiro") }],
     });
@@ -67,6 +69,7 @@ describe("destination mapping", () => {
   test("Codex: AGENTS.md", () => {
     writeInstruction(sb, "base");
     writeManifest(sb, {
+      canon_search_paths: [sb.content],
       defaults: { instructions: ["base"], skills: [] },
       targets: [{ agent: "codex", home: homeFor(sb, "codex") }],
     });
@@ -76,6 +79,7 @@ describe("destination mapping", () => {
   test("disabled targets are skipped, empty instructions produce no op", () => {
     writeInstruction(sb, "base");
     writeManifest(sb, {
+      canon_search_paths: [sb.content],
       defaults: { instructions: [], skills: [] },
       targets: [
         { agent: "claude", home: homeFor(sb, "claude") },

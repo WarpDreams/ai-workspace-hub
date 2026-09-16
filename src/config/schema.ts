@@ -118,11 +118,21 @@ export const ManifestSchema = z
   .object({
     $schema: z.string().optional(),
     /**
-     * Directories scanned recursively for content (absolute, ~, or relative to
-     * this file's directory). Default ["."]. Later paths override earlier
-     * ones on name collisions.
+     * Canon roots: directories scanned recursively for instruction fragments,
+     * skills and MCP specs (absolute, ~, or relative to this file's
+     * directory). Later paths override earlier ones on name collisions.
+     *
+     * There is deliberately NO default. Omitted or empty means awh manages no
+     * discovered content — it will not guess a directory to scan, because
+     * guessing the manifest's own directory turns a manifest saved in $HOME
+     * into a scan of the entire home directory.
      */
-    content_search_paths: z.array(z.string().min(1)).min(1).default(["."]),
+    canon_search_paths: z.array(z.string().min(1)).optional(),
+    /**
+     * @deprecated Renamed to `canon_search_paths`. Still accepted; a warning
+     * is printed and `canon_search_paths` wins if both are present.
+     */
+    content_search_paths: z.array(z.string().min(1)).optional(),
     /**
      * Colourise `doctor` output. Default false. Ignored (no colour) when
      * stdout is not a TTY or $NO_COLOR is set.
@@ -154,6 +164,19 @@ export const ManifestSchema = z
   });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
+
+/**
+ * The canon roots a manifest declares, honouring the deprecated alias.
+ * Returns [] when neither key is present or the chosen one is empty.
+ */
+export function canonSearchPaths(manifest: Manifest): string[] {
+  return manifest.canon_search_paths ?? manifest.content_search_paths ?? [];
+}
+
+/** True when the manifest uses the old key and would benefit from a nudge. */
+export function usesDeprecatedCanonKey(manifest: Manifest): boolean {
+  return manifest.content_search_paths !== undefined;
+}
 
 /** A target with defaults merged in — every field resolved. */
 export interface ResolvedTarget {

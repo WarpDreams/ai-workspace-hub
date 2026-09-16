@@ -3,7 +3,7 @@ import path from "node:path";
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
 import { McpSpecSchema, type AgentId, type Manifest, type McpSelector, type McpSpecInput } from "../config/schema";
 import { absPathFrom } from "../util/paths";
-import { contentIndex, looksLikePath } from "./content";
+import { canonConfigured, contentIndex, looksLikePath } from "./content";
 
 /**
  * Canonical MCP server definitions are <name>.jsonc files under a directory
@@ -99,7 +99,12 @@ export function resolveMcpSpecs(sel: McpSelector, manifestPath: string, origin: 
   for (const e of entries) {
     if (typeof e === "string") {
       if (e === "*") {
-        for (const n of availableMcp()) putFile(loadMcpSpec(n));
+        // No canon means nothing was discovered; inline declarations still apply.
+        if (canonConfigured()) for (const n of availableMcp()) putFile(loadMcpSpec(n));
+        continue;
+      }
+      if (!canonConfigured() && !looksLikePath(e)) {
+        console.warn(`warning: skipping MCP server "${e}" (no canon configured to look it up in).`);
         continue;
       }
       if (!fs.existsSync(mcpSpecPath(e))) {
