@@ -1,9 +1,9 @@
 // machine.macos-multi-codex.jsonc — two Codex homes plus Claude and Kiro.
-// Put this in your content repo as .awh.jsonc, beside instructions/, skills/, mcp/.
+// Put this in your canon as .awh.jsonc, beside instructions/, skills/, mcp/.
 {
   "defaults": {
     "strategy": "symlink",
-    "instructions": ["applus_base"],
+    "instructions": ["base"],
     "skills": "*"
   },
   "targets": [

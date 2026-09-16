@@ -6,6 +6,42 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-17
+
+### Changed
+- The default instruction fragment is now `base`. It previously carried an
+  organisation-specific name, which had no business in a public package — it
+  appeared in the schema default, in `doctor`'s suggested starter manifest, in
+  the README and in every example.
+- `doctor`'s suggested starter manifest now describes what is actually on the
+  machine instead of guessing. `defaults.instructions` is empty, and each
+  target carries its own `instructions` listing the instruction files found in
+  that agent's home (`["CLAUDE.md"]`, `["AGENTS.md"]`, every `steering/*.md`
+  for Kiro) — or `[]` when that home has none. A short note explains that
+  those files must be moved into the canon, since awh installs from the canon
+  into the home and not the other way round.
+- The suggestion now sets `"color_output": true`. The schema default stays
+  `false`, but a starter manifest is written for a person at a terminal, and
+  `doctor` still suppresses colour for a non-TTY, `$NO_COLOR` and `--json`.
+- The suggestion is now always loadable: when one agent has several homes
+  (e.g. `~/.codex` and `~/.codex-backup`) each target is given a distinct
+  `name`. Previously the suggested manifest was rejected on load in that case,
+  because launch names must be unique.
+- Documentation: the material awh manages is now called your **canon**
+  throughout the README, the example manifests and the CLI's own messages,
+  replacing the vaguer "content"/"content repo". The README leads with why a
+  single canon exists at all, and a new "Set up your canon" section shows the
+  directory layout, which two directory names are load-bearing (`instructions`
+  and `mcp` — a skill is any directory with a `SKILL.md`) and how to get a
+  first `.awh.jsonc` out of `awh doctor`. The canon is described as a plain
+  directory; nothing assumes it is a git repository. The manifest key
+  `content_search_paths` is unchanged.
+
+### Added
+- A hygiene test that fails the build if an employer/client name, an internal
+  hostname, an AWS account id or a private Atlassian tenant appears in the
+  sources, the examples, the README or the bundled CLI.
+
 ## [0.3.0] - 2026-09-16
 
 ### Added
@@ -69,7 +105,8 @@ Initial release.
 - Multi-fragment instruction composition, generated only by `install`/`sync`
   and reported as stale by read-only commands.
 
-[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/WarpDreams/ai-workspace-hub/releases/tag/v0.1.0

@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
 // machine.example.jsonc — annotated reference of EVERY option.
 //
-// The manifest lives in your CONTENT repo (next to instructions/, skills/,
-// mcp/), not in the awh tool repo. Copy one of these examples there as
-// `.awh.jsonc`, then point awh at it:
+// The manifest lives in your CANON — the one directory holding your
+// instructions, skills and MCP specs — not in the awh tool directory. Copy one
+// of these examples there as `.awh.jsonc`, then point awh at it:
 //
-//     ln -s ~/works/my-agent-content/.awh.jsonc ~/.awh.jsonc
+//     ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc
 //     awh doctor && awh install
 // ---------------------------------------------------------------------------
 {
@@ -32,7 +32,7 @@
     // For single-file agents (Claude/Codex) multiple
     // fragments are composed into one file; for Kiro each fragment becomes
     // its own steering/<name>.md.
-    "instructions": ["applus_base"],
+    "instructions": ["base"],
 
     // "*" installs every discovered skill, or list names / paths to skill
     // directories (each must contain SKILL.md).
@@ -75,7 +75,7 @@
 
       // Any of these override the defaults for this target only:
       "strategy": "symlink",
-      "instructions": ["applus_base"],
+      "instructions": ["base"],
       "skills": "*",
       "mcp": ["playwright"]
 
