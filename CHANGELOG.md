@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-17
+
+### Changed
+- **Breaking (defaults):** the default instruction fragment is now `base`. It
+  previously carried an organisation-specific name, which had no business in a
+  public package — it appeared in the schema default, in `doctor`'s suggested
+  starter manifest, in the README and in every example. A manifest that relies
+  on the default and has a differently named fragment must now list it
+  explicitly, e.g. `"instructions": ["my_base"]`.
+
+### Added
+- A hygiene test that fails the build if an employer/client name, an internal
+  hostname, an AWS account id or a private Atlassian tenant appears in the
+  sources, the examples, the README or the bundled CLI.
+
 ## [0.3.0] - 2026-09-16
 
 ### Added
@@ -69,7 +84,8 @@ Initial release.
 - Multi-fragment instruction composition, generated only by `install`/`sync`
   and reported as stale by read-only commands.
 
-[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/WarpDreams/ai-workspace-hub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/WarpDreams/ai-workspace-hub/releases/tag/v0.1.0

@@ -32,7 +32,7 @@
     // For single-file agents (Claude/Codex) multiple
     // fragments are composed into one file; for Kiro each fragment becomes
     // its own steering/<name>.md.
-    "instructions": ["applus_base"],
+    "instructions": ["base"],
 
     // "*" installs every discovered skill, or list names / paths to skill
     // directories (each must contain SKILL.md).
@@ -75,7 +75,7 @@
 
       // Any of these override the defaults for this target only:
       "strategy": "symlink",
-      "instructions": ["applus_base"],
+      "instructions": ["base"],
       "skills": "*",
       "mcp": ["playwright"]
 

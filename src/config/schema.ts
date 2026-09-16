@@ -68,7 +68,7 @@ const Defaults = z
   .object({
     strategy: z.enum(STRATEGIES).default("symlink"),
     /** Instruction fragments: names in the instructions root (sans .md) or paths to .md files. */
-    instructions: z.array(z.string().min(1)).default(["applus_base"]),
+    instructions: z.array(z.string().min(1)).default(["base"]),
     skills: SkillSelector.default("*"),
     /**
      * MCP servers (files under content/mcp). Default [] — installing servers

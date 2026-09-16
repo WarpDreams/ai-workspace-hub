@@ -333,7 +333,7 @@ function cmdDoctor(flags: Flags): number {
     if (problems > 0) console.log(`  ${yellow("run `status` / `sync` to reconcile, or fix the manifest")}`);
   } else {
     const suggested = {
-      defaults: { strategy: "symlink", instructions: ["applus_base"], skills: "*", mcp: [] as string[] },
+      defaults: { strategy: "symlink", instructions: ["base"], skills: "*", mcp: [] as string[] },
       targets: report.homes.filter((h) => h.exists).map((h) => ({ agent: h.agent, home: tildify(h.homeAbs) })),
     };
     console.log(`\n${bold("Suggested .awh.jsonc")} (save as ./.awh.jsonc or ~/.awh.jsonc):`);

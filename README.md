@@ -131,7 +131,7 @@ State glyphs in `status`/`plan`:
 
   "defaults": {
     "strategy": "symlink",            // symlink (default) | copy
-    "instructions": ["applus_base"],  // discovered fragment names, or paths to .md files
+    "instructions": ["base"],  // discovered fragment names, or paths to .md files
     "skills": "*",                    // "*" = every discovered skill, or names / paths to skill dirs
     "mcp": []                         // MCP specs: names, paths, or inline { name: spec }; default []
   },
@@ -147,7 +147,7 @@ State glyphs in `status`/`plan`:
 Selector entries are **names** (as discovered by the scan) or **paths** —
 anything with a `/`, a leading `~` or `.`, or a `.md`/`.jsonc` extension —
 resolved against the manifest's directory, which bypasses discovery entirely.
-So `"instructions": ["applus_base", "../shared/security.md"]` and
+So `"instructions": ["base", "../shared/security.md"]` and
 `"skills": ["~/other-repo/skills/foo"]` both work; the installed name is the
 file/directory basename.
 
