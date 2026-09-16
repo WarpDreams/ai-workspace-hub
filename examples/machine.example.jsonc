@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
 // machine.example.jsonc — annotated reference of EVERY option.
 //
-// The manifest lives in your CONTENT repo (next to instructions/, skills/,
-// mcp/), not in the awh tool repo. Copy one of these examples there as
-// `.awh.jsonc`, then point awh at it:
+// The manifest lives in your CANON — the one directory holding your
+// instructions, skills and MCP specs — not in the awh tool directory. Copy one
+// of these examples there as `.awh.jsonc`, then point awh at it:
 //
-//     ln -s ~/works/my-agent-content/.awh.jsonc ~/.awh.jsonc
+//     ln -s ~/ai-canon/.awh.jsonc ~/.awh.jsonc
 //     awh doctor && awh install
 // ---------------------------------------------------------------------------
 {

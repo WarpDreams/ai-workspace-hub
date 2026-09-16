@@ -336,14 +336,14 @@ function cmdDoctor(flags: Flags): number {
     console.log(`\n${bold("Suggested .awh.jsonc")} (save as ./.awh.jsonc or ~/.awh.jsonc):`);
     console.log(JSON.stringify(suggested, null, 2));
     if (suggested.targets.some((t) => t.instructions.length > 0)) {
-      // awh installs FROM the content repo INTO the home, so the files listed
-      // above are what to adopt, not sources awh can already read.
+      // awh installs FROM the canon INTO the home, so the files listed above
+      // are what to adopt, not sources awh can already read.
       console.log(
         dim(
           "\nEach target lists the instruction files already in that agent's home.\n" +
-            "Move them into your content repo beside this manifest (keeping these\n" +
-            "names), or change the entries to paths — awh installs from your content\n" +
-            "repo into the agent home, not the other way round.",
+            "Move them into your canon beside this manifest (keeping these names),\n" +
+            "or change the entries to paths — awh installs from your canon into the\n" +
+            "agent home, not the other way round.",
         ),
       );
     }
@@ -357,7 +357,7 @@ function cmdAddSkill(flags: Flags): number {
     console.error("Usage: awh add-skill <name>");
     return 2;
   }
-  loadManifest(flags.manifest); // establishes the content roots
+  loadManifest(flags.manifest); // establishes the canon roots
   if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
     console.error("Skill name must be kebab-case (lowercase letters, digits, hyphens).");
     return 2;

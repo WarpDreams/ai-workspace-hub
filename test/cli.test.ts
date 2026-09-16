@@ -155,7 +155,7 @@ describe("read-only commands", () => {
 
     // The listed files live in the agent homes, not in the content repo, so
     // doctor must say how to adopt them.
-    assert.match(r.stdout, /Move them into your content repo beside this manifest/);
+    assert.match(r.stdout, /Move them into your canon beside this manifest/);
 
     // Save it exactly as a user would. Once the named fragments exist in the
     // content repo beside the manifest, it must work unedited.

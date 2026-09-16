@@ -16,6 +16,15 @@ All notable changes to this project are documented here. The format follows
   `steering/*.md` for Kiro) — or `[]` when that home has none. A short note
   explains that those files must be moved into the content repo, since awh
   installs from the content repo into the home and not the other way round.
+- Documentation: the material awh manages is now called your **canon**
+  throughout the README, the example manifests and the CLI's own messages,
+  replacing the vaguer "content"/"content repo". The README leads with why a
+  single canon exists at all, and a new "Set up your canon" section shows the
+  directory layout, which two directory names are load-bearing (`instructions`
+  and `mcp` — a skill is any directory with a `SKILL.md`) and how to get a
+  first `.awh.jsonc` out of `awh doctor`. The canon is described as a plain
+  directory; nothing assumes it is a git repository. The manifest key
+  `content_search_paths` is unchanged.
 - The suggestion now sets `"color_output": true`. The schema default stays
   `false`, but a starter manifest is written for a person at a terminal, and
   `doctor` still suppresses colour for a non-TTY, `$NO_COLOR` and `--json`.
