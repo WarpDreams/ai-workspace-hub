@@ -147,6 +147,7 @@ describe("read-only commands", () => {
     const suggested = JSON.parse(json);
 
     assert.deepEqual(suggested.defaults.instructions, []);
+    assert.equal(suggested.color_output, true);
     const byAgent = (a: string) => suggested.targets.filter((t: any) => t.agent === a);
     assert.deepEqual(byAgent("claude")[0].instructions, ["CLAUDE.md"]);
     assert.equal(byAgent("codex").length, 2, "both codex homes are discovered");

@@ -321,6 +321,7 @@ export interface SuggestedTarget {
 }
 
 export interface SuggestedManifest {
+  color_output: boolean;
   defaults: { strategy: "symlink"; instructions: string[]; skills: "*"; mcp: string[] };
   targets: SuggestedTarget[];
 }
@@ -354,5 +355,8 @@ export function suggestManifest(report: DoctorReport): SuggestedManifest {
     return { agent: h.agent, home: tildify(h.homeAbs), name, instructions };
   });
 
-  return { defaults: { strategy: "symlink", instructions: [], skills: "*", mcp: [] }, targets };
+  // Colour is off by default in the schema, but a starter manifest is for a
+  // person at a terminal — and doctor suppresses it anyway for non-TTY,
+  // $NO_COLOR and --json, so switching it on here cannot corrupt piped output.
+  return { color_output: true, defaults: { strategy: "symlink", instructions: [], skills: "*", mcp: [] }, targets };
 }

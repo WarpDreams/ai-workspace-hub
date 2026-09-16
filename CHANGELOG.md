@@ -16,6 +16,9 @@ All notable changes to this project are documented here. The format follows
   `steering/*.md` for Kiro) — or `[]` when that home has none. A short note
   explains that those files must be moved into the content repo, since awh
   installs from the content repo into the home and not the other way round.
+- The suggestion now sets `"color_output": true`. The schema default stays
+  `false`, but a starter manifest is written for a person at a terminal, and
+  `doctor` still suppresses colour for a non-TTY, `$NO_COLOR` and `--json`.
 - The suggestion is now always loadable: when one agent has several homes
   (e.g. `~/.codex` and `~/.codex-backup`) each target is given a distinct
   `name`. Previously the suggested manifest was rejected on load in that case,

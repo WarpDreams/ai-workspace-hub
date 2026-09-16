@@ -40,6 +40,14 @@ describe("defaults", () => {
     assert.equal(s.defaults.skills, "*");
     assert.deepEqual(s.defaults.mcp, []);
   });
+
+  test("colour is switched on — a starter manifest is for a person at a terminal", () => {
+    write(home(".claude", "CLAUDE.md"), "# claude\n");
+    const s = suggest();
+    assert.equal(s.color_output, true);
+    // It must survive a round trip through the schema, where the default is false.
+    assert.equal(assertLoadable(s).color_output, true);
+  });
 });
 
 describe("per-target instructions", () => {
