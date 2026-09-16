@@ -1,5 +1,8 @@
 # ai-workspace-hub (`awh`)
 
+[![CI](https://github.com/WarpDreams/ai-workspace-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/WarpDreams/ai-workspace-hub/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/ai-workspace-hub.svg)](https://www.npmjs.com/package/ai-workspace-hub)
+
 One command-line tool that installs your canonical agent **instructions**,
 **skills** and **MCP servers** into every agent CLI's home directory, in the
 format each CLI expects, and launches agents against a chosen home.
@@ -12,21 +15,24 @@ Different agent CLIs read the same logical content from different places:
 | Skills              | `~/.claude/skills/<name>/`  | `~/.codex/skills/<name>/`      | `~/.kiro/skills/<name>/`   |
 | MCP servers (user)  | `~/.claude.json`            | `~/.codex/config.toml`         | `~/.kiro/settings/mcp.json`|
 
-`awh` is only the tool. **Your content lives in a separate repo** (see
-[ai-workspace-content](https://github.com/alienbat/ai-workspace-content) for
-the layout): instruction fragments, skill directories, MCP specs, and the
+`awh` is only the tool. **Your content lives in a separate repo of your
+own**: instruction fragments, skill directories, MCP specs, and the
 per-machine manifest `.awh.jsonc` that says which agents/homes exist and what
-each gets.
+each gets. No particular layout is required — see
+[How content is found](#how-content-is-found).
 
 ## Install
 
 ```bash
-# from the git repo (not yet on the npm registry)
-npm install -g git+ssh://git@github.com/alienbat/ai-workspace-hub.git
-# or from a clone
-git clone git@github.com:alienbat/ai-workspace-hub.git && cd ai-workspace-hub && npm install -g .
+npm install -g ai-workspace-hub
 
 awh --version
+```
+
+Or run it without installing:
+
+```bash
+npx ai-workspace-hub doctor
 ```
 
 Requires Node.js >= 18 on macOS or Linux and, for MCP management and
@@ -38,10 +44,14 @@ Requires Node.js >= 18 on macOS or Linux and, for MCP management and
 `$AWH_MANIFEST`, `./.awh.jsonc`, `~/.awh.jsonc`. The usual setup is a symlink:
 
 ```bash
-git clone git@github.com:alienbat/ai-workspace-content.git ~/works/ai-workspace-content
-ln -s ~/works/ai-workspace-content/.awh.jsonc ~/.awh.jsonc
+git clone <your-content-repo> ~/works/my-agent-content
+ln -s ~/works/my-agent-content/.awh.jsonc ~/.awh.jsonc
 awh doctor
 ```
+
+Starting from scratch? Run `awh doctor` with no manifest anywhere: it scans
+the agent homes on this machine and prints a starter `.awh.jsonc` you can
+save and edit.
 
 Relative paths in a manifest resolve against the directory of the **real**
 manifest file, so content sits beside it in the content repo.
@@ -294,10 +304,20 @@ you pass `--force`.
 npm install
 npm run awh -- status        # run from TypeScript via tsx
 npm run typecheck
+npm test                     # builds, then runs the suite (node:test via tsx)
 npm run build                # bundles to dist/cli.cjs (also runs on `npm install` via prepare)
 npm link                     # make this checkout the global `awh`
 npm pack --dry-run           # inspect exactly what a published tarball would contain
 ```
+
+Tests live in `test/`. Every test runs against a throwaway `$HOME` and
+`$XDG_STATE_HOME`, so the suite never reads or writes your real agent homes or
+ledger. `test/cli.test.ts` drives the bundled `dist/cli.cjs` rather than the
+TypeScript sources, so it catches bundling regressions too. Run one file with
+`npx tsx --test test/apply.test.ts`.
+
+CI runs typecheck and tests on Node 18/20/22/24 (plus macOS), and separately
+packs the tarball, installs it globally and runs the installed binary.
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
 

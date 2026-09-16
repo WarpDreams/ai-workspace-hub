@@ -1,6 +1,6 @@
 {
   "name": "ai-workspace-hub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "awh: install canonical agent instructions, skills and MCP servers into Claude Code, Codex and Kiro homes from a per-machine manifest, and launch agents against a chosen home.",
   "keywords": [
     "claude-code",
@@ -14,13 +14,13 @@
     "cli",
     "awh"
   ],
-  "homepage": "https://github.com/alienbat/ai-workspace-hub#readme",
+  "homepage": "https://github.com/WarpDreams/ai-workspace-hub#readme",
   "bugs": {
-    "url": "https://github.com/alienbat/ai-workspace-hub/issues"
+    "url": "https://github.com/WarpDreams/ai-workspace-hub/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alienbat/ai-workspace-hub.git"
+    "url": "git+https://github.com/WarpDreams/ai-workspace-hub.git"
   },
   "license": "MIT",
   "author": "Jian Shen <alienbat@gmail.com>",
@@ -44,8 +44,10 @@
   ],
   "scripts": {
     "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --main-fields=module,main --define:__AWH_VERSION__=\\\"$npm_package_version\\\" --outfile=dist/cli.cjs --banner:js='#!/usr/bin/env node' && chmod +x dist/cli.cjs",
+    "pretest": "npm run build",
+    "test": "tsx --test test/*.test.ts",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run typecheck && npm run build",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "awh": "tsx src/cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

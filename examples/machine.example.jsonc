@@ -5,7 +5,7 @@
 // mcp/), not in the awh tool repo. Copy one of these examples there as
 // `.awh.jsonc`, then point awh at it:
 //
-//     ln -s ~/works/ai-workspace-content/.awh.jsonc ~/.awh.jsonc
+//     ln -s ~/works/my-agent-content/.awh.jsonc ~/.awh.jsonc
 //     awh doctor && awh install
 // ---------------------------------------------------------------------------
 {
